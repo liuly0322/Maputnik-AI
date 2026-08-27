@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import istanbul from "vite-plugin-istanbul";
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ command, mode }) => ({
   server: {
     port: 8889,
   },
@@ -23,7 +23,9 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     exclude: ["maplibre-gl/dist/maplibre-gl-worker.mjs"],
   },
-  base: mode === "desktop" ? "/" : "/maputnik/",
+  // Keep the existing development URL, but emit relative production asset URLs
+  // so GitHub Pages works regardless of the repository name or custom domain.
+  base: mode === "desktop" ? "/" : command === "build" ? "./" : "/maputnik/",
   define: {
     global: "globalThis"
   },
