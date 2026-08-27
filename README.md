@@ -61,6 +61,13 @@ Open <http://localhost:8889/maputnik/>.
 6. Inspect the live result, adjust it manually, or continue with another message.
 7. Open **Export** to download the base map, data overlay, or both.
 
+## Model and endpoint requirements
+
+- The API endpoint must be compatible with the OpenAI **Responses API** and support streaming requests. An endpoint that only provides the Chat Completions API, such as `/v1/chat/completions`, cannot be used directly. The default OpenAI endpoint is `https://api.openai.com/v1/responses`; for another provider, enter its corresponding Responses API-compatible endpoint.
+- The model needs reliable instruction-following, JavaScript generation, and tool-calling capabilities so it can inspect workspace state and iteratively modify the map.
+- A vision model that supports image input is recommended. When a reference image is attached to the prompt, a vision model can analyze its colors, layer hierarchy, labels, and overall composition to more closely reproduce the reference map's appearance.
+- Consider trying `deepseek-v4-flash-vision-exp`, or another Responses API-compatible vision model offered by your provider. Available model names, image-input capabilities, and tool-calling support depend on the provider.
+
 For example, after uploading a CSV with `lon`, `lat`, and `value` columns:
 
 > Inspect the hotspot data, simplify the current base-map style, and add a square-grid overlay whose color represents `value`. Choose the cell size from the data extent and current map scale.
@@ -128,16 +135,15 @@ This repository preserves Maputnik's copyright notices and is distributed under 
 
 <a id="中文说明"></a>
 
-<details>
-<summary><strong>中文说明</strong></summary>
+## 中文说明
 
-## 项目简介
+### 项目简介
 
 Maputnik AI 是基于 [Maputnik](https://github.com/maplibre/maputnik) 的实验性分支，让 LLM 可以读取并修改用户正在编辑的同一张 MapLibre 地图。Agent 不需要通过点击界面间接操作，而是可以直接读取当前视野、样式、图层、地图要素选择和已加载的 CSV 数据，再针对这些实时应用状态执行 JavaScript。
 
 项目目前专注于交互式地图样式编辑和轻量级地理空间数据可视化，没有引入额外的 GIS 数据库或工作流引擎。
 
-## 已实现功能
+### 已实现功能
 
 - 完整保留 Maputnik 的 MapLibre 可视化样式编辑能力。
 - 内置 Agent 对话界面，支持兼容 OpenAI Responses API 的端点、流式回复和参考图片附件。
@@ -148,7 +154,7 @@ Maputnik AI 是基于 [Maputnik](https://github.com/maplibre/maputnik) 的实验
 - 对话、Agent 设置和数据集会保存在浏览器本地。
 - 可将当前底图与 Agent 创建的数据叠加层分别导出为 PNG。
 
-## 快速启动
+### 快速启动
 
 请使用当前仍在维护的 Node.js LTS 版本或更高版本。
 
@@ -159,7 +165,7 @@ npm run start
 
 打开 <http://localhost:8889/maputnik/>。
 
-## 使用 Agent Workspace
+### 使用 Agent Workspace
 
 1. 使用 Maputnik 的常规功能打开或编辑地图样式。
 2. 点击顶部工具栏中的 **Agent**。
@@ -169,11 +175,18 @@ npm run start
 6. 在地图上检查结果，手工继续编辑，或通过下一条消息让 Agent 调整。
 7. 打开 **Export**，分别下载底图、数据叠加层，或同时下载两者。
 
+### 模型与端点要求
+
+- API 端点必须兼容 OpenAI **Responses API**，并能够接收流式请求；仅提供 Chat Completions API（例如 `/v1/chat/completions`）的端点不能直接使用。OpenAI 官方端点默认为 `https://api.openai.com/v1/responses`，使用其他服务商时请填写其对应的 Responses API 兼容端点。
+- 模型需要具备可靠的指令遵循、JavaScript 生成和工具调用能力，才能读取工作区状态并持续修改地图。
+- 推荐使用支持图片输入的视觉模型。将参考图和需求一起发送后，视觉模型可以分析其配色、图层层次、标注和整体构图，从而更好地模仿参考图的地图效果。
+- 可优先尝试 `deepseek-v4-flash-vision-exp`，或所使用服务商提供的其他 Responses API 兼容视觉模型。实际可用的模型名称、图片输入能力和工具调用支持以服务商说明为准。
+
 例如，上传包含 `lon`、`lat` 和 `value` 字段的 CSV 后，可以输入：
 
 > 检查热点数据，简化当前底图样式，然后添加一个以 `value` 控制颜色的方格叠加层。根据数据范围和当前地图比例尺自行确定网格大小。
 
-## Agent 可访问的运行时对象
+### Agent 可访问的运行时对象
 
 | 对象 | 用途 |
 | --- | --- |
@@ -187,7 +200,7 @@ npm run start
 > [!WARNING]
 > Agent 生成的 JavaScript 目前直接在页面 runtime 中执行，尚未进行沙箱隔离。API key 和对话设置保存在浏览器 local storage 中。请只在可信的本地环境中使用可信的模型、提示词和数据。
 
-## 开发与测试
+### 开发与测试
 
 ```bash
 npm run build       # 类型检查并构建
@@ -206,10 +219,8 @@ npx playwright install --with-deps chromium
 npm run test
 ```
 
-## 上游项目与许可证
+### 上游项目与许可证
 
 Maputnik AI 是独立的实验性分支，并非 MapLibre 官方项目。原始 Maputnik 编辑器由 [maplibre/maputnik](https://github.com/maplibre/maputnik) 维护。
 
 本仓库保留了 Maputnik 的版权声明，并采用 [MIT License](LICENSE) 发布。
-
-</details>
