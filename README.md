@@ -8,7 +8,7 @@
 
 Maputnik AI lets you control a live MapLibre map with natural language. Choose a map style, add a CSV dataset, and describe the result you want—the AI can restyle the map, create a data visualization, and refine it with you in the same editable workspace.
 
-> **Try it online:** Open the GitHub Pages demo at [**liuly.moe/Maputnik-AI/**](http://liuly.moe/Maputnik-AI/). The demo does not include an LLM API—you still need to provide your own API key and enter it together with a Responses API-compatible endpoint and model in **Agent Settings**.
+> **Try it online:** Open the GitHub Pages demo at [**liuly.moe/Maputnik-AI/**](https://liuly.moe/Maputnik-AI/). No installation is required, but the demo does not include an LLM API—you still need to provide your own API key and enter it together with a Responses API-compatible endpoint and model in **Agent Settings**.
 
 <table>
   <tr>
@@ -47,7 +47,9 @@ For example, after uploading a CSV with `lon`, `lat`, and `value` columns:
 - Continue refining the result through conversation while keeping manual Maputnik editing available.
 - Preserve local chat sessions, settings, and datasets, and export the base map and AI-created overlays separately.
 
-## Quick start
+## Local development
+
+This section is only needed if you want to run or develop Maputnik AI locally. Skip it when using the online demo.
 
 Use the current active LTS release of Node.js or newer.
 
@@ -59,6 +61,8 @@ npm run start
 Open <http://localhost:8889/maputnik/>.
 
 ## Configure the AI model
+
+This configuration is required whether you use the online demo or run Maputnik AI locally.
 
 - The API endpoint must be compatible with the OpenAI **Responses API** and support streaming requests. An endpoint that only provides the Chat Completions API, such as `/v1/chat/completions`, cannot be used directly. The default OpenAI endpoint is `https://api.openai.com/v1/responses`; for another provider, enter its corresponding Responses API-compatible endpoint.
 - The model needs reliable instruction-following, JavaScript generation, and tool-calling capabilities so it can inspect workspace state and iteratively modify the map.
@@ -134,7 +138,7 @@ This repository preserves Maputnik's copyright notices and is distributed under 
 
 Maputnik AI 让你可以直接用自然语言操控实时 MapLibre 地图。选择一个地图样式、导入 CSV 数据，再用一句话描述想要的效果，AI 就能修改地图样式、生成数据可视化，并在同一个可编辑工作区中继续与你一起调整。
 
-> **在线试用：** 可以通过 GitHub Pages 访问 [**liuly.moe/Maputnik-AI/**](http://liuly.moe/Maputnik-AI/) 直接体验。在线版本不内置 LLM API，你仍需自行准备 API key，并在 **Agent Settings** 中填写 Responses API 兼容端点和模型名称。
+> **在线试用：** 可以通过 GitHub Pages 访问 [**liuly.moe/Maputnik-AI/**](https://liuly.moe/Maputnik-AI/) 直接体验，无需安装。在线版本不内置 LLM API，你仍需自行准备 API key，并在 **Agent Settings** 中填写 Responses API 兼容端点和模型名称。
 
 ### 使用流程
 
@@ -156,7 +160,9 @@ Maputnik AI 让你可以直接用自然语言操控实时 MapLibre 地图。选�
 - 通过连续对话迭代结果，同时保留 Maputnik 原有的手工编辑能力。
 - 在本地保留对话、设置和数据集，并分别导出底图与 AI 创建的数据叠加层。
 
-### 快速启动
+### 本地开发与运行
+
+以下步骤仅适用于希望在本地运行或开发 Maputnik AI 的用户。使用在线版本时可以跳过本节。
 
 请使用当前仍在维护的 Node.js LTS 版本或更高版本。
 
@@ -168,6 +174,8 @@ npm run start
 打开 <http://localhost:8889/maputnik/>。
 
 ### 配置 AI 模型
+
+无论使用在线版本还是在本地运行 Maputnik AI，都需要完成以下配置。
 
 - API 端点必须兼容 OpenAI **Responses API**，并能够接收流式请求；仅提供 Chat Completions API（例如 `/v1/chat/completions`）的端点不能直接使用。OpenAI 官方端点默认为 `https://api.openai.com/v1/responses`，使用其他服务商时请填写其对应的 Responses API 兼容端点。
 - 模型需要具备可靠的指令遵循、JavaScript 生成和工具调用能力，才能读取工作区状态并持续修改地图。
