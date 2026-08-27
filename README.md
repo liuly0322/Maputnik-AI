@@ -1,10 +1,12 @@
 <h1 align="center">Maputnik AI</h1>
 
-<p align="center"><strong>An LLM-powered GIS map editor and geospatial data visualizer.</strong></p>
+<p align="center"><strong>Talk to your map. Turn data into a visualization with one prompt.</strong></p>
 
 <p align="center">
   <a href="#overview">English</a> · <a href="#中文说明">简体中文</a>
 </p>
+
+Maputnik AI lets you control a live MapLibre map with natural language. Choose a map style, add a CSV dataset, and describe the result you want—the AI can restyle the map, create a data visualization, and refine it with you in the same editable workspace.
 
 <table>
   <tr>
@@ -16,29 +18,32 @@
     </td>
   </tr>
   <tr>
-    <td align="center"><strong>Chat with the live GIS workspace</strong></td>
-    <td align="center"><strong>Turn CSV data into a map visualization</strong></td>
+    <td align="center"><strong>Tell AI how to edit the live map</strong></td>
+    <td align="center"><strong>Generate a data visualization from one prompt</strong></td>
   </tr>
 </table>
 
 <a id="overview"></a>
 
-## Overview
+## How it works
 
-Maputnik AI is an experimental fork of [Maputnik](https://github.com/maplibre/maputnik) that lets an LLM inspect and modify the same live MapLibre map that a person is editing. Instead of operating the interface through clicks, the built-in agent can read the current viewport, style, layers, feature selection, and loaded CSV datasets, then run JavaScript against that shared application state.
+1. **Choose a map style.** Start from an available style or import your own MapLibre style as the base map.
+2. **Add your data.** Upload a CSV, inspect its columns, and select the longitude and latitude fields.
+3. **Ask the AI.** Describe the map or visualization you want in one prompt. You can also attach a reference image for the AI to follow.
+4. **Export the result.** Refine the live result through chat or the visual editor, then export the base map, data overlay, or both as PNG files.
 
-The project currently focuses on interactive map styling and lightweight geospatial data visualization. It does not introduce a separate GIS database or workflow engine.
+For example, after uploading a CSV with `lon`, `lat`, and `value` columns:
 
-## Features
+> Simplify the base map, then visualize the hotspot data as a green square grid whose color intensity represents `value`. Choose a suitable grid size for the current map scale.
 
-- The complete Maputnik visual editor for MapLibre styles.
-- A built-in agent chat using an OpenAI Responses API-compatible endpoint, with streaming responses and reference-image attachments.
-- Live JavaScript access to `map`, `style`, `runtime`, `datasets`, `workspace`, and `log`.
-- Runtime snapshots of the viewport, style, sources, layers, selected layer, clicked map features, and dataset summaries.
-- Map and style changes that remain synchronized with the visual editor.
-- Local CSV upload, column inspection, filtering, and point conversion from user-selected longitude and latitude columns.
-- Persistent local chat sessions, settings, and datasets.
-- Separate PNG export of the current base map and agent-created data overlays.
+## What the AI can do
+
+- Inspect the live viewport, style, sources, layers, selected layer, clicked features, and loaded datasets.
+- Modify the same live MapLibre map that is open in the visual editor—there is no separate preview or duplicate map state.
+- Turn browser-local CSV data into point-based map layers and generate custom visual treatments with JavaScript.
+- Follow attached reference images when used with a vision model, helping reproduce their colors, labels, hierarchy, and composition.
+- Continue refining the result through conversation while keeping manual Maputnik editing available.
+- Preserve local chat sessions, settings, and datasets, and export the base map and AI-created overlays separately.
 
 ## Quick start
 
@@ -51,26 +56,14 @@ npm run start
 
 Open <http://localhost:8889/maputnik/>.
 
-## Use the Agent Workspace
-
-1. Open or edit a style with the normal Maputnik controls.
-2. Select **Agent** in the top toolbar.
-3. Open **Settings** and enter an API key, Responses API endpoint, and model name. The default endpoint is `https://api.openai.com/v1/responses`.
-4. For a data-driven task, open **Data**, upload a CSV, return to **Chat**, and choose the datasets to include in the agent context.
-5. Describe the result you want. Reference images can be attached to the same message.
-6. Inspect the live result, adjust it manually, or continue with another message.
-7. Open **Export** to download the base map, data overlay, or both.
-
-## Model and endpoint requirements
+## Configure the AI model
 
 - The API endpoint must be compatible with the OpenAI **Responses API** and support streaming requests. An endpoint that only provides the Chat Completions API, such as `/v1/chat/completions`, cannot be used directly. The default OpenAI endpoint is `https://api.openai.com/v1/responses`; for another provider, enter its corresponding Responses API-compatible endpoint.
 - The model needs reliable instruction-following, JavaScript generation, and tool-calling capabilities so it can inspect workspace state and iteratively modify the map.
 - A vision model that supports image input is recommended. When a reference image is attached to the prompt, a vision model can analyze its colors, layer hierarchy, labels, and overall composition to more closely reproduce the reference map's appearance.
 - Consider trying `deepseek-v4-flash-vision-exp`, or another Responses API-compatible vision model offered by your provider. Available model names, image-input capabilities, and tool-calling support depend on the provider.
 
-For example, after uploading a CSV with `lon`, `lat`, and `value` columns:
-
-> Inspect the hotspot data, simplify the current base-map style, and add a square-grid overlay whose color represents `value`. Choose the cell size from the data extent and current map scale.
+After starting the app, select **Agent** in the top toolbar, open **Settings**, and enter the API key, Responses API endpoint, and model name.
 
 ## Runtime surface
 
@@ -125,7 +118,7 @@ npx playwright install --with-deps chromium
 npm run test
 ```
 
-## Upstream and license
+## Project background and license
 
 Maputnik AI is an independent experimental fork, not an official MapLibre project. The original Maputnik editor is maintained at [maplibre/maputnik](https://github.com/maplibre/maputnik).
 
@@ -137,22 +130,27 @@ This repository preserves Maputnik's copyright notices and is distributed under 
 
 ## 中文说明
 
-### 项目简介
+Maputnik AI 让你可以直接用自然语言操控实时 MapLibre 地图。选择一个地图样式、导入 CSV 数据，再用一句话描述想要的效果，AI 就能修改地图样式、生成数据可视化，并在同一个可编辑工作区中继续与你一起调整。
 
-Maputnik AI 是基于 [Maputnik](https://github.com/maplibre/maputnik) 的实验性分支，让 LLM 可以读取并修改用户正在编辑的同一张 MapLibre 地图。Agent 不需要通过点击界面间接操作，而是可以直接读取当前视野、样式、图层、地图要素选择和已加载的 CSV 数据，再针对这些实时应用状态执行 JavaScript。
+### 使用流程
 
-项目目前专注于交互式地图样式编辑和轻量级地理空间数据可视化，没有引入额外的 GIS 数据库或工作流引擎。
+1. **选择地图样式。** 从现有样式开始，或导入自制的 MapLibre 样式作为底图。
+2. **导入数据。** 上传 CSV、查看字段，并指定经度和纬度字段。
+3. **告诉 AI 想要什么。** 用一句话描述地图或数据可视化效果；也可以附上参考图，让 AI 模仿其视觉风格。
+4. **调整并导出。** 通过对话或可视化编辑器继续修改实时结果，最后将底图、数据叠加层或两者分别导出为 PNG。
 
-### 已实现功能
+例如，上传包含 `lon`、`lat` 和 `value` 字段的 CSV 后，可以输入：
 
-- 完整保留 Maputnik 的 MapLibre 可视化样式编辑能力。
-- 内置 Agent 对话界面，支持兼容 OpenAI Responses API 的端点、流式回复和参考图片附件。
-- Agent JavaScript 可以直接访问 `map`、`style`、`runtime`、`datasets`、`workspace` 和 `log`。
-- Runtime 可以读取当前视野、样式、数据源、图层、选中图层、点击位置的地图要素和数据集摘要。
-- Agent 对地图和样式的修改会同步回可视化编辑器。
-- 支持在浏览器本地上传 CSV、查看字段、筛选记录，并指定经纬度字段转换为点数据。
-- 对话、Agent 设置和数据集会保存在浏览器本地。
-- 可将当前底图与 Agent 创建的数据叠加层分别导出为 PNG。
+> 简化底图，然后将热点数据绘制成绿色方格网，用颜色深浅表示 `value`，并根据当前地图比例尺选择合适的网格大小。
+
+### AI 可以做什么
+
+- 读取实时视野、样式、数据源、图层、选中图层、点击位置的要素和已加载的数据集。
+- 直接修改可视化编辑器中打开的同一张 MapLibre 地图，不创建脱离实际编辑状态的独立预览。
+- 将浏览器本地的 CSV 数据转换为点图层，并通过 JavaScript 生成自定义可视化效果。
+- 搭配视觉模型读取参考图片，模仿其中的配色、标注、层次和整体构图。
+- 通过连续对话迭代结果，同时保留 Maputnik 原有的手工编辑能力。
+- 在本地保留对话、设置和数据集，并分别导出底图与 AI 创建的数据叠加层。
 
 ### 快速启动
 
@@ -165,26 +163,14 @@ npm run start
 
 打开 <http://localhost:8889/maputnik/>。
 
-### 使用 Agent Workspace
-
-1. 使用 Maputnik 的常规功能打开或编辑地图样式。
-2. 点击顶部工具栏中的 **Agent**。
-3. 展开 **Settings**，填写 API key、Responses API endpoint 和模型名称。默认端点为 `https://api.openai.com/v1/responses`。
-4. 如果任务需要数据，打开 **Data** 上传 CSV，返回 **Chat**，并选择要加入 Agent 上下文的数据集。
-5. 描述你希望完成的地图效果，也可以在同一条消息中添加参考图片。
-6. 在地图上检查结果，手工继续编辑，或通过下一条消息让 Agent 调整。
-7. 打开 **Export**，分别下载底图、数据叠加层，或同时下载两者。
-
-### 模型与端点要求
+### 配置 AI 模型
 
 - API 端点必须兼容 OpenAI **Responses API**，并能够接收流式请求；仅提供 Chat Completions API（例如 `/v1/chat/completions`）的端点不能直接使用。OpenAI 官方端点默认为 `https://api.openai.com/v1/responses`，使用其他服务商时请填写其对应的 Responses API 兼容端点。
 - 模型需要具备可靠的指令遵循、JavaScript 生成和工具调用能力，才能读取工作区状态并持续修改地图。
 - 推荐使用支持图片输入的视觉模型。将参考图和需求一起发送后，视觉模型可以分析其配色、图层层次、标注和整体构图，从而更好地模仿参考图的地图效果。
 - 可优先尝试 `deepseek-v4-flash-vision-exp`，或所使用服务商提供的其他 Responses API 兼容视觉模型。实际可用的模型名称、图片输入能力和工具调用支持以服务商说明为准。
 
-例如，上传包含 `lon`、`lat` 和 `value` 字段的 CSV 后，可以输入：
-
-> 检查热点数据，简化当前底图样式，然后添加一个以 `value` 控制颜色的方格叠加层。根据数据范围和当前地图比例尺自行确定网格大小。
+应用启动后，点击顶部工具栏中的 **Agent**，展开 **Settings**，填写 API key、Responses API endpoint 和模型名称。
 
 ### Agent 可访问的运行时对象
 
@@ -219,7 +205,7 @@ npx playwright install --with-deps chromium
 npm run test
 ```
 
-### 上游项目与许可证
+### 项目背景与许可证
 
 Maputnik AI 是独立的实验性分支，并非 MapLibre 官方项目。原始 Maputnik 编辑器由 [maplibre/maputnik](https://github.com/maplibre/maputnik) 维护。
 
