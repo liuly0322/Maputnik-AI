@@ -8,6 +8,8 @@
 
 Maputnik AI lets you control a live MapLibre map with natural language. Choose a map style, add a CSV dataset, and describe the result you want—the AI can restyle the map, create a data visualization, and refine it with you in the same editable workspace.
 
+> **Try it online:** Open the GitHub Pages demo at [**liuly.moe/Maputnik-AI/**](http://liuly.moe/Maputnik-AI/). The demo does not include an LLM API—you still need to provide your own API key and enter it together with a Responses API-compatible endpoint and model in **Agent Settings**.
+
 <table>
   <tr>
     <td width="50%" valign="top">
@@ -131,6 +133,8 @@ This repository preserves Maputnik's copyright notices and is distributed under 
 ## 中文说明
 
 Maputnik AI 让你可以直接用自然语言操控实时 MapLibre 地图。选择一个地图样式、导入 CSV 数据，再用一句话描述想要的效果，AI 就能修改地图样式、生成数据可视化，并在同一个可编辑工作区中继续与你一起调整。
+
+> **在线试用：** 可以通过 GitHub Pages 访问 [**liuly.moe/Maputnik-AI/**](http://liuly.moe/Maputnik-AI/) 直接体验。在线版本不内置 LLM API，你仍需自行准备 API key，并在 **Agent Settings** 中填写 Responses API 兼容端点和模型名称。
 
 ### 使用流程
 
