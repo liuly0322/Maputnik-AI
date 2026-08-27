@@ -1,0 +1,17 @@
+@use "vars";
+
+.agent-export-panel {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-3;
+}
+
+.agent-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: vars.$margin-2;
+}
+
+.agent-export-status {
+  color: vars.$color-green;
+}

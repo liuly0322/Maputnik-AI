@@ -97,9 +97,9 @@ export class Assertable<T> {
   // Some testids resolve to many elements that are always rendered but hidden
   // (e.g. per-field documentation panels); "not visible" means none is visible.
   shouldNotBeVisible = () => expect(this.locator().filter({ visible: true })).toHaveCount(0);
-  shouldExist = async () => {
+  shouldExist = async (options?: {timeout?: number}) => {
     if (isLocator(this.target)) {
-      await expect(this.locator().first()).toBeAttached();
+      await expect(this.locator().first()).toBeAttached(options);
     } else {
       await this.assertValue((value) => expect(value).toBeTruthy());
     }
@@ -387,6 +387,18 @@ export class PlaywrightHelper {
       await fileChooser.setFiles({
         name: fixture,
         mimeType: "application/json",
+        buffer: Buffer.from(content),
+      });
+    },
+
+    chooseFileFromPickerWithBuffer: async (name: string, mimeType: string, content: string, triggerTestId: string) => {
+      const [fileChooser] = await Promise.all([
+        this.page.waitForEvent("filechooser"),
+        this.testId(triggerTestId).click(),
+      ]);
+      await fileChooser.setFiles({
+        name,
+        mimeType,
         buffer: Buffer.from(content),
       });
     },

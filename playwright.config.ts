@@ -4,7 +4,7 @@ const isCI = !!process.env.CI;
 // When the app is already served elsewhere (e.g. the docker e2e job) set
 // E2E_NO_WEBSERVER=1 so Playwright does not start its own dev server.
 const useExternalServer = !!process.env.E2E_NO_WEBSERVER;
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8888/";
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8889/";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -39,7 +39,7 @@ export default defineConfig({
     ? undefined
     : {
       command: "npm run start",
-      url: "http://localhost:8888/maputnik/",
+      url: "http://localhost:8889/maputnik/",
       reuseExistingServer: !isCI,
       timeout: 120000,
     },

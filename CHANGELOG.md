@@ -1,16 +1,20 @@
 ## main
 
 ### ✨ Features and improvements
+- Add the Maputnik AI Agent Workspace for streaming LLM conversations and live JavaScript access to the current map, style, viewport, selection, and layers
+- Add browser-local CSV datasets with column inspection, filtering, IndexedDB persistence, and point-layer visualization
+- Add reference-image attachments and persistent local Agent sessions and settings
+- Add separate PNG export for the base map and Agent-created data overlays
+- Rebrand the experimental fork as Maputnik AI
 - Replace Cypress with Playwright for end-to-end tests and Vitest browser mode (Playwright provider) for component tests; drop the `@shellygo/cypress-test-utils` helper in favour of a `MaputnikDriver` page object
 - Upgrade to MapLibre GL JS 6 and Vite 8, and update the remaining dependencies
 - Serve the RTL text plugin from `@mapbox/mapbox-gl-rtl-text` instead of a pinned CDN URL, so its version is tracked in `package.json`
 - Exported HTML now loads MapLibre GL JS as an ES module, since v6 no longer ships a UMD bundle
-- _...Add new stuff here..._
 
 ### 🐞 Bug fixes
+- Wait for application stores to finish initializing before E2E interactions begin
 - The map's data listener now fires on tile loads again, so source and vector layer field autocompletion is populated
 - The `maputnik` desktop binary now opens the default browser automatically on startup (opt out with `--no-browser`)
-- _...Add new stuff here..._
 
 ## 3.1.0
 

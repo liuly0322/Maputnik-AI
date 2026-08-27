@@ -1,0 +1,84 @@
+@use "vars";
+
+.maputnik-agent-workspace-modal {
+  width: 1100px;
+  height: 80vh;
+  max-width: calc(100vw - 40px);
+  max-height: 80vh;
+  position: relative;
+  z-index: 1;
+  text-align: left;
+
+  .maputnik-modal-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .maputnik-modal-scroller {
+    display: flex;
+  }
+
+  .maputnik-modal-content {
+    flex: 1;
+  }
+}
+
+.maputnik-agent-workspace-shell {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  align-items: center;
+  justify-content: center;
+
+  &--open {
+    display: flex;
+  }
+}
+
+.maputnik-agent-workspace-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+body.maputnik-modal-open {
+  overflow: hidden;
+}
+
+.agent-workspace-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: vars.$margin-2;
+  margin-bottom: vars.$margin-3;
+}
+
+.agent-workspace-tab {
+  display: flex;
+  align-items: center;
+  gap: vars.$margin-2;
+  padding: vars.$margin-2 vars.$margin-3;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 2px;
+  background-color: vars.$color-gray;
+  color: vars.$color-lowgray;
+
+  &--active {
+    border-color: vars.$color-lowgray;
+    background-color: vars.$color-midgray;
+    color: vars.$color-white;
+  }
+}
+
+.agent-workspace-view {
+  display: none;
+
+  &--active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+}

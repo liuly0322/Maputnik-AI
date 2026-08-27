@@ -11,7 +11,8 @@ import {
   MdLanguage,
   MdSave,
   MdPublic,
-  MdCode
+  MdCode,
+  MdTerminal
 } from "react-icons/md";
 import pkgJson from "../../package.json";
 //@ts-ignore
@@ -24,7 +25,7 @@ import type { OnStyleChangedCallback } from "../libs/definitions";
 const browser = detect();
 const colorAccessibilityFiltersEnabled = ["chrome", "firefox"].indexOf(browser!.name) > -1;
 
-export type ModalTypes = "settings" | "sources" | "open" | "shortcuts" | "export" | "debug" | "globalState" | "codeEditor";
+export type ModalTypes = "settings" | "sources" | "open" | "shortcuts" | "export" | "debug" | "globalState" | "codeEditor" | "agentConsole";
 
 type IconTextProps = {
   children?: React.ReactNode
@@ -216,7 +217,7 @@ class AppToolbarInternal extends React.Component<AppToolbarInternalProps> {
           >
             <img src={maputnikLogo} alt={t("Maputnik on GitHub")} />
             <h1>
-              <span className="maputnik-toolbar-name">{pkgJson.name}</span>
+              <span className="maputnik-toolbar-name">Maputnik AI</span>
               <span className="maputnik-toolbar-version">v{pkgJson.version}</span>
             </h1>
           </a>
@@ -233,6 +234,10 @@ class AppToolbarInternal extends React.Component<AppToolbarInternalProps> {
           <ToolbarAction wdKey="nav:code-editor" onClick={() => this.props.onToggleModal("codeEditor")}>
             <MdCode />
             <IconText>{t("Code Editor")}</IconText>
+          </ToolbarAction>
+          <ToolbarAction wdKey="nav:agent-workspace" onClick={() => this.props.onToggleModal("agentConsole")}>
+            <MdTerminal />
+            <IconText>{t("Agent")}</IconText>
           </ToolbarAction>
           <ToolbarAction wdKey="nav:sources" onClick={() => this.props.onToggleModal("sources")}>
             <MdLayers />

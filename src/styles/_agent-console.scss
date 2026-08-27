@@ -1,0 +1,369 @@
+@use "vars";
+
+.maputnik-agent-console-modal {
+  width: 720px;
+  max-width: calc(100vw - 40px);
+
+  .maputnik-modal-content {
+    display: block;
+  }
+}
+
+.agent-console {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  min-height: 0;
+  gap: vars.$margin-3;
+}
+
+.agent-console-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 6px;
+  background-color: vars.$color-gray;
+  overflow: hidden;
+}
+
+.agent-console-sidebar--open {
+  min-height: 0;
+}
+
+.agent-console-sidebar:not(.agent-console-sidebar--open) {
+  width: 48px;
+
+  .agent-console-sidebar-header span {
+    display: none;
+  }
+}
+
+.agent-console-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: vars.$margin-3;
+  border-bottom: 1px solid vars.$color-midgray;
+  color: vars.$color-white;
+}
+
+.agent-console-sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: vars.$margin-3;
+}
+
+.agent-console-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-2;
+}
+
+.agent-console-controls {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-3;
+}
+
+.agent-console-control-block {
+  padding: vars.$margin-3;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 4px;
+  background-color: vars.$color-black;
+}
+
+.agent-console-chat-card {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid vars.$color-lowgray;
+  border-radius: 6px;
+  background-color: vars.$color-black;
+}
+
+.agent-console-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: vars.$margin-3;
+  flex-shrink: 0;
+  padding: vars.$margin-3;
+  border-bottom: 1px solid vars.$color-midgray;
+  background-color: vars.$color-gray;
+}
+
+.agent-console-generating {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: vars.$margin-2;
+  margin: vars.$margin-4 0;
+  color: vars.$color-green;
+  font-size: vars.$font-size-6;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.agent-console-generating-spinner {
+  width: 18px;
+  height: 18px;
+  animation: agent-console-spin 0.8s linear infinite;
+}
+
+@keyframes agent-console-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.agent-console-settings {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-3;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: vars.$margin-1;
+
+    span {
+      color: vars.$color-lowgray;
+      font-size: vars.$font-size-6;
+    }
+
+    input {
+      width: 100%;
+      padding: vars.$margin-2 vars.$margin-3;
+      border: 1px solid vars.$color-midgray;
+      border-radius: 2px;
+      background-color: vars.$color-gray;
+      color: vars.$color-white;
+      font-size: vars.$font-size-6;
+    }
+  }
+}
+
+.agent-console-settings-header,
+.agent-console-context-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: vars.$margin-3;
+}
+
+.agent-console-sessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: vars.$margin-3;
+}
+
+.agent-console-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-2;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.agent-console-session {
+  display: flex;
+  align-items: center;
+  gap: vars.$margin-2;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 2px;
+  background-color: vars.$color-gray;
+}
+
+.agent-console-session--active {
+  border-color: vars.$color-lowgray;
+  background-color: vars.$color-midgray;
+}
+
+.agent-console-session-select {
+  flex: 1;
+  min-width: 0;
+  padding: vars.$margin-2 vars.$margin-3;
+  border: 0;
+  background: transparent;
+  color: vars.$color-white;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-console-session-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: vars.$color-lowgray;
+}
+
+.agent-console-messages {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: vars.$margin-3;
+  overflow-y: auto;
+  padding: vars.$margin-3;
+}
+
+.agent-console-message {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-1;
+}
+
+.agent-console-message--assistant .agent-console-message-role {
+  color: vars.$color-green;
+}
+
+.agent-console-message--tool .agent-console-message-role {
+  color: vars.$color-red;
+}
+
+.agent-console-message-role {
+  color: vars.$color-lowgray;
+  font-size: vars.$font-size-6;
+  text-transform: uppercase;
+}
+
+.agent-console-message-content {
+  margin: 0;
+  padding: vars.$margin-3;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 2px;
+  background-color: vars.$color-gray;
+  color: vars.$color-white;
+  font-family: monospace;
+  font-size: vars.$font-size-6;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.agent-console-message-images,
+.agent-console-pending-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: vars.$margin-2;
+}
+
+.agent-console-message-image,
+.agent-console-pending-image img {
+  max-width: 120px;
+  max-height: 90px;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.agent-console-pending-image {
+  position: relative;
+
+  button {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.7);
+    color: vars.$color-white;
+    line-height: 1;
+  }
+}
+
+.agent-console-message--user .agent-console-message-content {
+  background-color: vars.$color-midgray;
+}
+
+.agent-console-message--tool .agent-console-message-content {
+  background-color: vars.$color-black;
+  border-color: vars.$color-lowgray;
+}
+
+.agent-console-dataset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: vars.$margin-2;
+}
+
+.agent-console-dataset-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: 220px;
+  padding: vars.$margin-2 vars.$margin-3;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 999px;
+  background-color: vars.$color-gray;
+  color: vars.$color-lowgray;
+  text-align: left;
+}
+
+.agent-console-dataset-chip--active {
+  border-color: vars.$color-green;
+  color: vars.$color-white;
+  background-color: vars.$color-midgray;
+}
+
+.agent-console-dataset-chip-name {
+  color: inherit;
+  font-weight: bold;
+}
+
+.agent-console-dataset-chip-meta {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: vars.$font-size-6;
+}
+
+.agent-console-error {
+  margin: vars.$margin-2 0;
+  color: vars.$color-red;
+}
+
+.agent-console-composer {
+  flex-shrink: 0;
+  padding: vars.$margin-3;
+  border-top: 1px solid vars.$color-midgray;
+  background-color: vars.$color-gray;
+
+  textarea {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    padding: vars.$margin-3;
+    border: 1px solid vars.$color-midgray;
+    border-radius: 2px;
+    background-color: vars.$color-gray;
+    color: vars.$color-white;
+    font-family: monospace;
+    font-size: vars.$font-size-6;
+    line-height: 1.4;
+  }
+}
+
+.agent-console-toolbar {
+  display: flex;
+  gap: vars.$margin-2;
+  margin-top: vars.$margin-2;
+}

@@ -15,6 +15,10 @@
 @use 'zoomproperty';
 @use 'popup';
 @use 'map';
+@use 'agent-console';
+@use 'agent-workspace';
+@use 'agent-export';
+@use 'datasets';
 @use 'react-collapse';
 
 .maputnik-layout {

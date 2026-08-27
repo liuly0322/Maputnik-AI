@@ -2,6 +2,7 @@ import React from "react";
 import {createRoot} from "react-dom/client";
 import * as MapLibreGl from "maplibre-gl";
 import {type LayerSpecification, type LngLat, type Map, type MapOptions, type SourceSpecification, type StyleSpecification} from "maplibre-gl";
+import type {Feature} from "geojson";
 import MaplibreInspect from "@maplibre/maplibre-gl-inspect";
 import colors from "@maplibre/maplibre-gl-inspect/lib/colors";
 import { FeatureLayerPopup as MapMaplibreGlLayerPopup } from "./MapMaplibreGlLayerPopup";
@@ -52,6 +53,8 @@ function buildInspectStyle(originalMapStyle: StyleSpecification, coloredLayers: 
 type MapMaplibreGlInternalProps = {
   onDataChange?(event: {map: Map | null}): unknown
   onLayerSelect(index: number): void
+  onMapLoaded?(map: Map): void
+  onFeatureSelect?(features: Feature[]): void
   mapStyle: StyleSpecification
   mapView: {
     zoom: number,
@@ -83,6 +86,7 @@ type MapMaplibreGlState = {
 class MapMaplibreGlInternal extends React.Component<MapMaplibreGlInternalProps, MapMaplibreGlState> {
   static defaultProps = {
     onMapLoaded: () => {},
+    onFeatureSelect: () => {},
     onDataChange: () => {},
     onLayerSelect: () => {},
     onChange: () => {},
@@ -236,6 +240,13 @@ class MapMaplibreGlInternal extends React.Component<MapMaplibreGlInternalProps, 
         zoomControl,
         zoom: map.getZoom()
       });
+      this.props.onMapLoaded?.(map);
+    });
+
+    map.on("click", e => {
+      const features = map.queryRenderedFeatures(e.point)
+        .map(feature => JSON.parse(JSON.stringify(feature)) as Feature);
+      this.props.onFeatureSelect?.(features);
     });
 
     map.on("data", e => {

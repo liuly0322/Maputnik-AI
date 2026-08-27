@@ -1,7 +1,7 @@
 import { PlaywrightHelper } from "./playwright-helper";
 import { ModalDriver } from "./modal-driver";
 
-const baseUrl = "http://localhost:8888/";
+const baseUrl = "http://localhost:8889/";
 const isMac = process.platform === "darwin";
 
 /**
@@ -100,12 +100,13 @@ export class MaputnikDriver {
       const toolbarLink = this.helper.get.elementByTestId("toolbar:link");
       await toolbarLink.scrollIntoViewIfNeeded();
       await this.then(toolbarLink).shouldBeVisible();
+      await this.then(this.helper.get.element("body[data-maputnik-ready='true']")).shouldExist({timeout: 15000});
     },
 
     openASecondStyleWithDifferentZoomAndCenter: async () => {
       await this.helper.when.clickButtonByName("Open");
       const input = this.helper.get.elementByTestId("modal:open.url.input");
-      await input.fill("http://localhost:8888/example-style-with-zoom-5-and-center-50-50.json");
+      await input.fill("http://localhost:8889/example-style-with-zoom-5-and-center-50-50.json");
       await input.press("Enter");
     },
 
@@ -118,6 +119,15 @@ export class MaputnikDriver {
     chooseExampleFileFromPicker: async () => {
       await this.helper.when.chooseFileFromPicker("example-style.json", "modal:open.dropzone");
       await this.helper.when.wait(200);
+    },
+
+    chooseCsvFromPicker: async (name: string, content: string) => {
+      await this.helper.when.chooseFileFromPickerWithBuffer(name, "text/csv", content, "datasets:upload");
+      await this.helper.when.wait(500);
+    },
+
+    chooseImageFromPicker: async (name: string, content: string) => {
+      await this.helper.when.chooseFileFromPickerWithBuffer(name, "image/svg+xml", content, "agent-console:add-image");
     },
 
     dropExampleFile: async () => {

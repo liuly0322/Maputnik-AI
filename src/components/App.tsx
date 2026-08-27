@@ -8,6 +8,7 @@ import {arrayMoveMutable} from "array-move";
 import hash from "string-hash";
 import { PMTiles } from "pmtiles";
 import {type Map, type LayerSpecification, type StyleSpecification, type ValidationError, type SourceSpecification} from "maplibre-gl";
+import type {Feature} from "geojson";
 import {validateStyleMin} from "@maplibre/maplibre-gl-style-spec";
 import latest from "@maplibre/maplibre-gl-style-spec/dist/latest.json";
 
@@ -27,6 +28,7 @@ import { ModalOpen } from "./modals/ModalOpen";
 import { ModalShortcuts } from "./modals/ModalShortcuts";
 import { ModalDebug } from "./modals/ModalDebug";
 import { ModalGlobalState } from "./modals/ModalGlobalState";
+import { ModalAgentWorkspace } from "./modals/ModalAgentWorkspace";
 
 import {downloadGlyphsMetadata, downloadSpriteMetadata} from "../libs/metadata";
 import { emptyStyle, getAccessToken, replaceAccessTokens } from "../libs/style";
@@ -38,6 +40,8 @@ import tokens from "../config/tokens.json";
 import isEqual from "lodash.isequal";
 import { type MapOptions } from "maplibre-gl";
 import { type MappedError, type OnStyleChangedOpts, type StyleSpecificationWithId } from "../libs/definitions";
+import { createAgentRuntimeFactory, type AgentRuntime } from "../libs/agent-runtime";
+import { DatasetStore } from "../libs/dataset-store";
 
 // Buffer must be defined globally for @maplibre/maplibre-gl-style-spec validate() function to succeed.
 window.Buffer = buffer.Buffer;
@@ -110,6 +114,7 @@ type AppState = {
     debugToolbox: boolean,
   },
   mapState: MapState
+  selection: Feature[]
   isOpen: {
     settings: boolean
     sources: boolean
@@ -119,6 +124,7 @@ type AppState = {
     debug: boolean
     globalState: boolean
     codeEditor: boolean
+    agentConsole: boolean
   }
   fileHandle: FileSystemFileHandle | null
 };
@@ -127,6 +133,9 @@ export class App extends React.Component<any, AppState> {
   revisionStore: RevisionStore;
   styleStore: IStyleStore | null = null;
   layerWatcher: LayerWatcher;
+  agentRuntime: AgentRuntime;
+  mapInstance: Map | null = null;
+  datasetStore = new DatasetStore();
 
   constructor(props: any) {
     super(props);
@@ -142,6 +151,7 @@ export class App extends React.Component<any, AppState> {
       sources: {},
       vectorLayers: {},
       mapState: "map",
+      selection: [],
       spec: latest,
       mapView: {
         zoom: 0,
@@ -159,7 +169,8 @@ export class App extends React.Component<any, AppState> {
         export: false,
         debug: false,
         globalState: false,
-        codeEditor: false
+        codeEditor: false,
+        agentConsole: false
       },
       maplibreGlDebugOptions: {
         showTileBoundaries: false,
@@ -175,7 +186,34 @@ export class App extends React.Component<any, AppState> {
     this.layerWatcher = new LayerWatcher({
       onVectorLayersChange: v => this.setState({ vectorLayers: v })
     });
+    this.agentRuntime = this.createAgentRuntime();
+    (window as any).maputnikRuntime = this.agentRuntime;
   }
+
+  createAgentRuntime = (): AgentRuntime => {
+    return createAgentRuntimeFactory({
+      getMap: () => this.mapInstance,
+      getStyle: () => cloneDeep(this.state.mapStyle),
+      setStyle: style => this.onStyleChanged(style as StyleSpecificationWithId),
+      getSelectedLayerIndex: () => this.state.selectedLayerIndex,
+      getSelection: () => this.state.selection,
+      setSelection: selection => this.setState({selection}),
+      getDatasets: () => this.datasetStore.list(),
+      datasets: this.datasetStore,
+    });
+  };
+
+  onMapLoaded = (map: Map) => {
+    this.mapInstance = map;
+  };
+
+  onFeatureSelect = (selection: Feature[]) => {
+    this.setState({selection});
+  };
+
+  onDatasetsChange = () => {
+    this.forceUpdate();
+  };
 
   configureKeyboardShortcuts = () => {
     const shortcuts = [
@@ -280,10 +318,13 @@ export class App extends React.Component<any, AppState> {
 
   async componentDidMount() {
     this.styleStore = await createStyleStore((mapStyle, opts) => this.onStyleChanged(mapStyle, opts));
+    await this.datasetStore.init();
+    document.body.dataset.maputnikReady = "true";
     window.addEventListener("keydown", this.handleKeyPress);
   }
 
   componentWillUnmount() {
+    delete document.body.dataset.maputnikReady;
     window.removeEventListener("keydown", this.handleKeyPress);
   }
 
@@ -727,7 +768,9 @@ export class App extends React.Component<any, AppState> {
         options={this.state.maplibreGlDebugOptions}
         inspectModeEnabled={this.state.mapState === "inspect"}
         highlightedLayer={this.state.mapStyle.layers[this.state.selectedLayerIndex]}
-        onLayerSelect={this.onLayerSelect} />;
+        onLayerSelect={this.onLayerSelect}
+        onMapLoaded={this.onMapLoaded}
+        onFeatureSelect={this.onFeatureSelect} />;
     }
 
     let filterName;
@@ -977,6 +1020,15 @@ export class App extends React.Component<any, AppState> {
         onStyleChanged={this.onStyleChanged}
         isOpen={this.state.isOpen.globalState}
         onOpenToggle={() => this.toggleModal("globalState")}
+      />
+      <ModalAgentWorkspace
+        isOpen={this.state.isOpen.agentConsole}
+        onOpenToggle={() => this.toggleModal("agentConsole")}
+        runtime={this.agentRuntime}
+        datasetStore={this.datasetStore}
+        onDatasetsChange={this.onDatasetsChange}
+        map={this.mapInstance}
+        renderer={this._getRenderer()}
       />
     </div>;
 

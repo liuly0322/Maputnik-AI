@@ -1,0 +1,47 @@
+@use "vars";
+
+.maputnik-datasets-modal {
+  width: 560px;
+  max-width: calc(100vw - 40px);
+}
+
+.dataset-panel-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: vars.$margin-3;
+}
+
+.maputnik-dataset-list {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-2;
+}
+
+.maputnik-dataset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: vars.$margin-3;
+  padding: vars.$margin-3;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 2px;
+  background-color: vars.$color-gray;
+}
+
+.maputnik-dataset-item-main {
+  min-width: 0;
+}
+
+.maputnik-dataset-item-name {
+  color: vars.$color-white;
+  font-weight: bold;
+}
+
+.maputnik-dataset-item-meta {
+  margin-top: vars.$margin-1;
+  color: vars.$color-lowgray;
+  font-size: vars.$font-size-6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
