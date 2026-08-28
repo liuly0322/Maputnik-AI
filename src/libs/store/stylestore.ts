@@ -29,6 +29,17 @@ function loadStoredStyles() {
   return styles;
 }
 
+function removeStoredStylesExcept(styleId?: string) {
+  const keysToRemove = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (key && isStyleKey(key) && fromKey(key) !== styleId) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(key => window.localStorage.removeItem(key));
+}
+
 function isStyleKey(key: string) {
   const parts = key.split(":");
   return parts.length === 3 && parts[0] === storagePrefix && parts[1] === stylePrefix;
@@ -60,17 +71,21 @@ export class StyleStore implements IStyleStore {
   // Tile store will load all items from local storage and
   // assume they do not change will working on it
   constructor() {
+    const latestStyleId = window.localStorage.getItem(storageKeys.latest);
+    if (latestStyleId && window.localStorage.getItem(styleKey(latestStyleId))) {
+      // Older versions accumulated a complete copy every time a style with a
+      // new id was opened. Only the latest style is restorable, so migrate the
+      // unreachable copies away on startup.
+      removeStoredStylesExcept(latestStyleId);
+    }
     this.mapStyles = loadStoredStyles();
   }
 
   // Delete entire style history
   purge() {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i) as string;
-      if(key.startsWith(storagePrefix)) {
-        window.localStorage.removeItem(key);
-      }
-    }
+    removeStoredStylesExcept();
+    window.localStorage.removeItem(storageKeys.latest);
+    this.mapStyles = [];
   }
 
   // Find the last edited style
@@ -113,6 +128,8 @@ export class StyleStore implements IStyleStore {
         throw e;
       }
     }
+    removeStoredStylesExcept(mapStyle.id);
+    this.mapStyles = [mapStyle.id];
     return mapStyle;
   }
 }

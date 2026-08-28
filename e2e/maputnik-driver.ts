@@ -337,7 +337,7 @@ export class MaputnikDriver {
     waitForExampleFileResponse: () => this.helper.when.waitForResponse("example-style.json"),
 
     /** Fill localStorage until we get a QuotaExceededError. */
-    fillLocalStorage: () => this.helper.when.fillLocalStorageUntilQuota("maputnik:fill-"),
+    fillLocalStorage: () => this.helper.when.fillLocalStorageUntilQuota("maputnik:style:fill-"),
   };
 
   public get = {
