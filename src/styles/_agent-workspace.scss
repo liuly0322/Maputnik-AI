@@ -1,12 +1,25 @@
 @use "vars";
 
+$agent-workspace-map-offset: vars.$layout-list-width + vars.$layout-editor-width;
+
 .maputnik-agent-workspace-modal {
-  width: 1100px;
+  width: var(--agent-workspace-width);
   height: 80vh;
-  max-width: calc(100vw - 40px);
-  max-height: 80vh;
-  position: relative;
+  min-width: 0;
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  position: absolute;
+  top: 50%;
+  left: clamp(
+    16px,
+    calc((100vw + #{$agent-workspace-map-offset} - var(--agent-workspace-width)) / 2),
+    calc(100vw - 16px - var(--agent-workspace-width))
+  );
+  transform: translateY(-50%);
   z-index: 1;
+  border: 1px solid rgba(164, 164, 164, 0.34);
+  border-radius: 9px;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.48), 0 2px 12px rgba(0, 0, 0, 0.34);
   text-align: left;
 
   .maputnik-modal-content {
@@ -25,12 +38,16 @@
 }
 
 .maputnik-agent-workspace-shell {
+  --agent-workspace-width: min(
+    calc(100vw - 32px),
+    1600px,
+    max(1200px, calc((100vw - #{$agent-workspace-map-offset}) * 0.8))
+  );
+
   display: none;
   position: fixed;
   inset: 0;
   z-index: 1050;
-  align-items: center;
-  justify-content: center;
 
   &--open {
     display: flex;
@@ -40,7 +57,8 @@
 .maputnik-agent-workspace-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.54);
+  backdrop-filter: blur(1px);
   cursor: pointer;
 }
 
@@ -61,7 +79,7 @@ body.maputnik-modal-open {
   gap: vars.$margin-2;
   padding: vars.$margin-2 vars.$margin-3;
   border: 1px solid vars.$color-midgray;
-  border-radius: 2px;
+  border-radius: 5px;
   background-color: vars.$color-gray;
   color: vars.$color-lowgray;
 
@@ -69,6 +87,11 @@ body.maputnik-modal-open {
     border-color: vars.$color-lowgray;
     background-color: vars.$color-midgray;
     color: vars.$color-white;
+  }
+
+  &:focus-visible {
+    outline: 2px solid vars.$color-white;
+    outline-offset: 2px;
   }
 }
 

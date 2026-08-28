@@ -1,5 +1,5 @@
 import React from "react";
-import {MdAdd, MdDelete, MdImage, MdSend} from "react-icons/md";
+import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdSend} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 
 import type {AgentRuntime} from "../libs/agent-runtime";
@@ -20,6 +20,7 @@ import {
 } from "../libs/agent-executor";
 import {AgentSessionStore, type AgentSession, type ChatMessage} from "../libs/agent-session-store";
 import type {DatasetStore} from "../libs/dataset-store";
+import {AgentConversation} from "./AgentConversation";
 
 type AgentConsoleInternalProps = {
   runtime: AgentRuntime;
@@ -527,119 +528,136 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const liveMap = this.props.runtime.map;
     const activeSession = this.state.sessions.find(session => session.id === this.state.activeSessionId);
 
-    return <div className="agent-console" data-wd-key="agent-console">
-      <aside className={`agent-console-sidebar ${this.state.sidebarOpen ? "agent-console-sidebar--open" : ""}`} data-wd-key="agent-console:sidebar">
-        <div className="agent-console-sidebar-header">
-          <span>{t("Controls")}</span>
-          <button className="maputnik-button" onClick={this.onToggleSidebar} data-wd-key="agent-console:toggle-sidebar">
-            {this.state.sidebarOpen ? t("Collapse") : t("Expand")}
-          </button>
-        </div>
-        {this.state.sidebarOpen && <div className="agent-console-sidebar-content">
-          <div className="agent-console-controls">
-            <section className="agent-console-control-block">
-              <div className="agent-console-settings-header">
-                <h1>{t("Agent settings")}</h1>
-                <button className="maputnik-button" onClick={() => this.setState(state => ({settingsOpen: !state.settingsOpen}))} data-wd-key="agent-console:toggle-settings">
-                  {this.state.settingsOpen ? t("Hide") : t("Settings")}
-                </button>
-              </div>
-              {this.state.settingsOpen && <div className="agent-console-settings">
-                <label>
-                  <span>{t("API key")}</span>
-                  <input
-                    type="password"
-                    value={this.state.apiKey}
-                    onChange={e => this.onSettingsChange("apiKey", e.target.value)}
-                    data-wd-key="agent-console:api-key"
-                  />
-                </label>
-                <label>
-                  <span>{t("Endpoint")}</span>
-                  <input
-                    type="text"
-                    value={this.state.endpoint}
-                    onChange={e => this.onSettingsChange("endpoint", e.target.value)}
-                    data-wd-key="agent-console:endpoint"
-                  />
-                </label>
-                <label>
-                  <span>{t("Model")}</span>
-                  <input
-                    type="text"
-                    value={this.state.model}
-                    onChange={e => this.onSettingsChange("model", e.target.value)}
-                    data-wd-key="agent-console:model"
-                  />
-                </label>
-              </div>}
-              <p>
-                {liveMap ? t("Live map is attached.") : t("Waiting for the map to load...")}
-              </p>
-            </section>
-
-            <section className="agent-console-control-block">
-              <div className="agent-console-sessions-header">
-                <h1>{t("Sessions")}</h1>
-                <button className="maputnik-button" onClick={this.onNewSession} disabled={!this.state.sessionsReady} data-wd-key="agent-console:new-session">
-                  <MdAdd />
-                  {t("New session")}
-                </button>
-              </div>
-              <div className="agent-console-sessions" data-wd-key="agent-console:sessions">
-                {this.state.sessions.length === 0 && <p>{t("No sessions yet.")}</p>}
-                {this.state.sessions.map(session => {
-                  return <div
-                    className={`agent-console-session ${session.id === this.state.activeSessionId ? "agent-console-session--active" : ""}`}
-                    key={session.id}
-                    data-wd-key={`agent-console:session:${session.id}`}
-                  >
-                    <button
-                      className="agent-console-session-select"
-                      onClick={() => this.onSelectSession(session.id)}
-                    >
-                      {session.title}
-                    </button>
-                    <button
-                      className="agent-console-session-delete"
-                      onClick={() => this.onDeleteSession(session.id)}
-                      aria-label={t("Delete session")}
-                      data-wd-key={`agent-console:delete-session:${session.id}`}
-                    >
-                      <MdDelete />
-                    </button>
-                  </div>;
-                })}
-              </div>
-            </section>
-
-            <section className="agent-console-control-block">
-              <div className="agent-console-context-header">
-                <h1>{t("Dataset context")}</h1>
-                <button className="maputnik-button" onClick={this.props.onOpenData} data-wd-key="agent-console:manage-data">
-                  {t("Manage data")}
-                </button>
-              </div>
-              <div className="agent-console-dataset-chips" data-wd-key="agent-console:dataset-chips">
-                {this.props.datasetStore.list().length === 0 && <p>{t("No datasets loaded.")}</p>}
-                {this.props.datasetStore.list().map(dataset => {
-                  const selected = this.state.selectedDatasetIds.includes(dataset.id);
-                  return <button
-                    key={dataset.id}
-                    className={`agent-console-dataset-chip ${selected ? "agent-console-dataset-chip--active" : ""}`}
-                    onClick={() => this.onToggleDataset(dataset.id)}
-                    data-wd-key={`agent-console:dataset-chip:${dataset.id}`}
-                  >
-                    <span className="agent-console-dataset-chip-name">{dataset.name}</span>
-                    <span className="agent-console-dataset-chip-meta">{dataset.rowCount} · {dataset.columns.slice(0, 4).join(", ")}</span>
-                  </button>;
-                })}
-              </div>
-            </section>
+    return <div
+      className={`agent-console ${this.state.sidebarOpen ? "agent-console--sidebar-open" : "agent-console--sidebar-closed"}`}
+      data-wd-key="agent-console"
+    >
+      <div className="agent-console-sidebar-slot">
+        <aside
+          className={`agent-console-sidebar ${this.state.sidebarOpen ? "agent-console-sidebar--open" : ""}`}
+          data-wd-key="agent-console:sidebar"
+          id="agent-console-sidebar"
+        >
+          <div className="agent-console-sidebar-header">
+            <span>{t("Controls")}</span>
+            <button
+              className="maputnik-button agent-console-sidebar-toggle"
+              onClick={this.onToggleSidebar}
+              title={this.state.sidebarOpen ? t("Collapse controls") : t("Expand controls")}
+              aria-label={this.state.sidebarOpen ? t("Collapse controls") : t("Expand controls")}
+              aria-expanded={this.state.sidebarOpen}
+              aria-controls="agent-console-sidebar"
+              data-wd-key="agent-console:toggle-sidebar"
+            >
+              {this.state.sidebarOpen ? <MdChevronLeft /> : <MdChevronRight />}
+            </button>
           </div>
-        </div>
-        }
-      </aside>
+          {this.state.sidebarOpen && <div className="agent-console-sidebar-content">
+            <div className="agent-console-controls">
+              <section className="agent-console-control-block">
+                <div className="agent-console-settings-header">
+                  <h1>{t("Agent settings")}</h1>
+                  <button className="maputnik-button" onClick={() => this.setState(state => ({settingsOpen: !state.settingsOpen}))} data-wd-key="agent-console:toggle-settings">
+                    {this.state.settingsOpen ? t("Hide") : t("Settings")}
+                  </button>
+                </div>
+                {this.state.settingsOpen && <div className="agent-console-settings">
+                  <label>
+                    <span>{t("API key")}</span>
+                    <input
+                      type="password"
+                      value={this.state.apiKey}
+                      onChange={e => this.onSettingsChange("apiKey", e.target.value)}
+                      data-wd-key="agent-console:api-key"
+                    />
+                  </label>
+                  <label>
+                    <span>{t("Endpoint")}</span>
+                    <input
+                      type="text"
+                      value={this.state.endpoint}
+                      onChange={e => this.onSettingsChange("endpoint", e.target.value)}
+                      data-wd-key="agent-console:endpoint"
+                    />
+                  </label>
+                  <label>
+                    <span>{t("Model")}</span>
+                    <input
+                      type="text"
+                      value={this.state.model}
+                      onChange={e => this.onSettingsChange("model", e.target.value)}
+                      data-wd-key="agent-console:model"
+                    />
+                  </label>
+                </div>}
+                <p>
+                  {liveMap ? t("Live map is attached.") : t("Waiting for the map to load...")}
+                </p>
+              </section>
+
+              <section className="agent-console-control-block">
+                <div className="agent-console-sessions-header">
+                  <h1>{t("Sessions")}</h1>
+                  <button className="maputnik-button" onClick={this.onNewSession} disabled={!this.state.sessionsReady} data-wd-key="agent-console:new-session">
+                    <MdAdd />
+                    {t("New session")}
+                  </button>
+                </div>
+                <div className="agent-console-sessions" data-wd-key="agent-console:sessions">
+                  {this.state.sessions.length === 0 && <p>{t("No sessions yet.")}</p>}
+                  {this.state.sessions.map(session => {
+                    return <div
+                      className={`agent-console-session ${session.id === this.state.activeSessionId ? "agent-console-session--active" : ""}`}
+                      key={session.id}
+                      data-wd-key={`agent-console:session:${session.id}`}
+                    >
+                      <button
+                        className="agent-console-session-select"
+                        onClick={() => this.onSelectSession(session.id)}
+                      >
+                        {session.title}
+                      </button>
+                      <button
+                        className="agent-console-session-delete"
+                        onClick={() => this.onDeleteSession(session.id)}
+                        aria-label={t("Delete session")}
+                        data-wd-key={`agent-console:delete-session:${session.id}`}
+                      >
+                        <MdDelete />
+                      </button>
+                    </div>;
+                  })}
+                </div>
+              </section>
+
+              <section className="agent-console-control-block">
+                <div className="agent-console-context-header">
+                  <h1>{t("Dataset context")}</h1>
+                  <button className="maputnik-button" onClick={this.props.onOpenData} data-wd-key="agent-console:manage-data">
+                    {t("Manage data")}
+                  </button>
+                </div>
+                <div className="agent-console-dataset-chips" data-wd-key="agent-console:dataset-chips">
+                  {this.props.datasetStore.list().length === 0 && <p>{t("No datasets loaded.")}</p>}
+                  {this.props.datasetStore.list().map(dataset => {
+                    const selected = this.state.selectedDatasetIds.includes(dataset.id);
+                    return <button
+                      key={dataset.id}
+                      className={`agent-console-dataset-chip ${selected ? "agent-console-dataset-chip--active" : ""}`}
+                      onClick={() => this.onToggleDataset(dataset.id)}
+                      data-wd-key={`agent-console:dataset-chip:${dataset.id}`}
+                    >
+                      <span className="agent-console-dataset-chip-name">{dataset.name}</span>
+                      <span className="agent-console-dataset-chip-meta">{dataset.rowCount} · {dataset.columns.slice(0, 4).join(", ")}</span>
+                    </button>;
+                  })}
+                </div>
+              </section>
+            </div>
+          </div>
+          }
+        </aside>
+      </div>
       <main className="agent-console-main">
         {this.state.error && <p className="agent-console-error" data-wd-key="agent-console:error">{this.state.error}</p>}
 
@@ -647,29 +665,11 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
           <header className="agent-console-chat-header">
             <h1>{t("Conversation")}</h1>
           </header>
-          <div className="agent-console-messages" data-wd-key="agent-console:messages">
-            {!activeSession && <p>{t("Select or create a session.")}</p>}
-            {activeSession?.messages.length === 0 && <p>{t("Ask the agent to inspect or modify the live map.")}</p>}
-            {activeSession?.messages.map(message => {
-              return <div className={`agent-console-message agent-console-message--${message.role}`} key={message.id}>
-                <div className="agent-console-message-role">{message.role}</div>
-                <pre className="agent-console-message-content">{message.content}</pre>
-                {message.images && message.images.length > 0 && <div className="agent-console-message-images">
-                  {message.images.map((image, index) => {
-                    return <img className="agent-console-message-image" src={image} alt="" key={`${message.id}-${index}`} />;
-                  })}
-                </div>}
-              </div>;
-            })}
-            {this.state.busy && <div className="agent-console-generating" data-wd-key="agent-console:generating">
-              <svg className="agent-console-generating-spinner" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-                <path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span>{t("Generating reply...")}</span>
-            </div>}
-            <div ref={this.messagesEndRef} />
-          </div>
+          <AgentConversation
+            session={activeSession}
+            busy={this.state.busy}
+            messagesEndRef={this.messagesEndRef}
+          />
 
           <div className="agent-console-composer">
             <input

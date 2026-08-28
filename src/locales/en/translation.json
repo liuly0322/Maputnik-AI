@@ -1,3 +1,13 @@
 {
-  "Drag and drop a style JSON file here or click to browse": "Drag and drop a style JSON file here or click to browse"
+  "Agent": "Agent",
+  "Collapse controls": "Collapse controls",
+  "Drag and drop a style JSON file here or click to browse": "Drag and drop a style JSON file here or click to browse",
+  "Execution details · {{count}} call": "Execution details · {{count}} call",
+  "Execution details · {{count}} calls": "Execution details · {{count}} calls",
+  "Expand controls": "Expand controls",
+  "JavaScript": "JavaScript",
+  "Output": "Output",
+  "Running tool...": "Running tool...",
+  "Tool call": "Tool call",
+  "You": "You"
 }

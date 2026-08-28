@@ -48,6 +48,134 @@ describe("agent console", () => {
     expect(requestBodies[0].input[0].content.some((part: any) => part.type === "input_image")).toBe(true);
   });
 
+  test("renders turns with markdown and collapsed tool execution details", async () => {
+    const page = currentPage();
+    const agentCode = "return 6 * 7;";
+    await page.route("http://localhost:8888/responses", route => {
+      const body = route.request().postDataJSON();
+      const hasFunctionCallOutput = (body.input ?? []).some((item: any) => item.type === "function_call_output");
+      if (hasFunctionCallOutput) {
+        return route.fulfill({
+          contentType: "text/event-stream",
+          body: [
+            "event: response.output_text.delta",
+            "data: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_2\",\"output_index\":0,\"content_index\":0,\"delta\":\"Finished with **forty-two** and `code`.\"}",
+            "",
+            "",
+          ].join("\n"),
+        });
+      }
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: [
+          "event: response.output_item.done",
+          `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code: agentCode}))}}}`,
+          "",
+          "",
+        ].join("\n"),
+      });
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Calculate the answer");
+    await when.click("agent-console:send");
+
+    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Finished with forty-two and code.");
+    await then(get.element(".agent-console-message-markdown strong")).shouldContainText("forty-two");
+    await then(get.element(".agent-console-message--user")).shouldHaveCss("align-items", "flex-end");
+    await then(get.element(".agent-console-message--assistant")).shouldHaveCss("align-items", "flex-start");
+    await then(get.element(".agent-console-tool-details summary")).shouldContainText("Execution details · 1 call");
+    await then(get.element(".agent-console-tool-code")).shouldNotBeVisible();
+
+    await when.click("agent-console:tool-details-toggle");
+    await then(get.element(".agent-console-tool-code")).shouldContainText(agentCode);
+    await then(get.element(".agent-console-tool-output")).shouldContainText("=> 42");
+    await then(get.element(".agent-console-tool-code")).shouldHaveCss("max-height", "320px");
+    await then(get.element(".agent-console-tool-output")).shouldHaveCss("overflow-y", "auto");
+    await then(get.element(".agent-console-tool-details")).shouldHaveCss("color", "rgb(164, 164, 164)");
+  });
+
+  test("renders a single tool call when the model returns no assistant text", async () => {
+    const page = currentPage();
+    const agentCode = "await new Promise(resolve => setTimeout(resolve, 1200)); return 'tool-only result';";
+    await page.route("http://localhost:8888/responses", route => {
+      const body = route.request().postDataJSON();
+      const hasFunctionCallOutput = (body.input ?? []).some((item: any) => item.type === "function_call_output");
+      if (hasFunctionCallOutput) {
+        return route.fulfill({contentType: "text/event-stream", body: ""});
+      }
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: [
+          "event: response.output_item.done",
+          `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call_only","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code: agentCode}))}}}`,
+          "",
+          "",
+        ].join("\n"),
+      });
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Use one tool and stop");
+    await when.click("agent-console:send");
+
+    await then(get.element(".agent-console-tool-details summary")).shouldContainText("Execution details · 1 call");
+    await when.click("agent-console:tool-details-toggle");
+    await then(get.elementByTestId("agent-console:tool-pending")).shouldContainText("Running tool...");
+    await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
+    await then(get.element(".agent-console-tool-code")).shouldContainText(agentCode);
+    await then(get.element(".agent-console-tool-output")).shouldContainText("tool-only result");
+  });
+
+  test("collapses controls to the left and centers the conversation between equal gutters", async () => {
+    await when.click("nav:agent-workspace");
+
+    await when.click("agent-console:toggle-sidebar");
+    await when.wait(200);
+    const consoleBox = await get.elementBox("agent-console").get();
+    const sidebar = await get.elementBox("agent-console:sidebar").get();
+    const conversation = await get.elementBox("agent-console:chat-card").get();
+
+    expect(consoleBox).not.toBeNull();
+    expect(sidebar).not.toBeNull();
+    expect(conversation).not.toBeNull();
+    expect(sidebar!.x).toBeCloseTo(consoleBox!.x, 1);
+    expect(sidebar!.width).toBeCloseTo(48, 1);
+    const leftGutter = conversation!.x - consoleBox!.x;
+    const rightGutter = consoleBox!.x + consoleBox!.width - conversation!.x - conversation!.width;
+    expect(leftGutter).toBeCloseTo(rightGutter, 1);
+    expect((await get.elementsText("agent-console:toggle-sidebar").get()).trim()).toBe("");
+    expect(await get.elementAttribute("agent-console:toggle-sidebar", "aria-expanded").get()).toBe("false");
+    expect(await get.elementAttribute("agent-console:toggle-sidebar", "aria-label").get()).toBe("Expand controls");
+  });
+
+  test("sizes the workspace against the map area and clamps it to narrow viewports", async () => {
+    await when.setViewportSize(2552, 1267);
+    await when.click("nav:agent-workspace");
+    const wide = await get.elementBox("modal:agent-workspace").get();
+
+    expect(wide).not.toBeNull();
+    expect(wide!.x).toBeCloseTo(768.2, 0);
+    expect(wide!.width).toBeCloseTo(1585.6, 0);
+    await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
+
+    await when.setViewportSize(680, 720);
+    const narrow = await get.elementBox("modal:agent-workspace").get();
+    expect(narrow).not.toBeNull();
+    expect(narrow!.x).toBeCloseTo(16, 0);
+    expect(narrow!.width).toBeCloseTo(648, 0);
+    await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
+    await then(get.elementByTestId("agent-console:chat-card")).shouldNotOverflowHorizontally();
+  });
+
   test("wraps long unbroken messages without widening the console", async () => {
     await when.click("nav:agent-workspace");
     await when.click("agent-console:toggle-settings");

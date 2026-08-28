@@ -274,6 +274,8 @@ export class PlaywrightHelper {
       await this.page.goto(url);
     },
 
+    setViewportSize: (width: number, height: number) => this.page.setViewportSize({width, height}),
+
     wait: (ms: number) => this.page.waitForTimeout(ms),
 
     tab: () => this.page.keyboard.press("Tab"),
@@ -469,6 +471,10 @@ export class PlaywrightHelper {
     inputValue: (testId: string) => new Query<string>(() => this.testId(testId).first().inputValue()),
 
     elementsText: (testId: string) => new Query<string>(() => this.testId(testId).first().innerText()),
+
+    elementBox: (testId: string) => new Query(() => this.testId(testId).first().boundingBox()),
+
+    elementAttribute: (testId: string, name: string) => new Query(() => this.testId(testId).first().getAttribute(name)),
 
     locationHash: () => new Query<string>(async () => new URL(this.page.url()).hash),
   };

@@ -200,5 +200,15 @@
   "View": "视图",
   "You've entered an old style filter.": "您输入了一个旧风格的过滤器。",
   "Zoom": "缩放",
-  "Drag and drop a style JSON file here or click to browse": "将样式 JSON 文件拖放到此处或点击以浏览"
+  "Agent": "Agent",
+  "Collapse controls": "折叠控制栏",
+  "Drag and drop a style JSON file here or click to browse": "将样式 JSON 文件拖放到此处或点击以浏览",
+  "Execution details · {{count}} call": "执行详情 · {{count}} 次调用",
+  "Execution details · {{count}} calls": "执行详情 · {{count}} 次调用",
+  "Expand controls": "展开控制栏",
+  "JavaScript": "JavaScript",
+  "Output": "输出",
+  "Running tool...": "正在运行工具……",
+  "Tool call": "工具调用",
+  "You": "你"
 }
