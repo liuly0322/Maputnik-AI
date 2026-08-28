@@ -354,6 +354,49 @@
     padding-left: 20px;
   }
 
+  ul {
+    list-style: disc;
+  }
+
+  ol {
+    list-style: decimal;
+  }
+
+  li {
+    margin: 3px 0;
+  }
+
+  strong,
+  b {
+    font-weight: 700;
+  }
+
+  em,
+  i {
+    font-style: italic;
+  }
+
+  table {
+    display: block;
+    max-width: 100%;
+    margin: 0 0 vars.$margin-3;
+    overflow-x: auto;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 6px 10px;
+    border: 1px solid vars.$color-midgray;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background-color: rgba(255, 255, 255, 0.08);
+    font-weight: 600;
+  }
+
   code {
     border-radius: 3px;
     background-color: vars.$color-black;
