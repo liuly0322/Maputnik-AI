@@ -40,7 +40,6 @@ import tokens from "../config/tokens.json";
 import isEqual from "lodash.isequal";
 import { type MapOptions } from "maplibre-gl";
 import { type MappedError, type OnStyleChangedOpts, type StyleSpecificationWithId } from "../libs/definitions";
-import { createAgentRuntimeFactory, type AgentRuntime } from "../libs/agent-runtime";
 import { DatasetStore } from "../libs/dataset-store";
 
 // Buffer must be defined globally for @maplibre/maplibre-gl-style-spec validate() function to succeed.
@@ -133,7 +132,6 @@ export class App extends React.Component<any, AppState> {
   revisionStore: RevisionStore;
   styleStore: IStyleStore | null = null;
   layerWatcher: LayerWatcher;
-  agentRuntime: AgentRuntime;
   mapInstance: Map | null = null;
   datasetStore = new DatasetStore();
 
@@ -186,21 +184,14 @@ export class App extends React.Component<any, AppState> {
     this.layerWatcher = new LayerWatcher({
       onVectorLayersChange: v => this.setState({ vectorLayers: v })
     });
-    this.agentRuntime = this.createAgentRuntime();
-    (window as any).maputnikRuntime = this.agentRuntime;
   }
 
-  createAgentRuntime = (): AgentRuntime => {
-    return createAgentRuntimeFactory({
-      getMap: () => this.mapInstance,
-      getStyle: () => cloneDeep(this.state.mapStyle),
-      setStyle: style => this.onStyleChanged(style as StyleSpecificationWithId),
-      getSelectedLayerIndex: () => this.state.selectedLayerIndex,
-      getSelection: () => this.state.selection,
-      setSelection: selection => this.setState({selection}),
-      getDatasets: () => this.datasetStore.list(),
-      datasets: this.datasetStore,
-    });
+  getAgentMap = () => this.mapInstance;
+
+  getAgentStyle = (): StyleSpecification => cloneDeep(this.state.mapStyle);
+
+  setAgentStyle = (style: StyleSpecification) => {
+    this.onStyleChanged(style as StyleSpecificationWithId);
   };
 
   onMapLoaded = (map: Map) => {
@@ -1024,10 +1015,11 @@ export class App extends React.Component<any, AppState> {
       <ModalAgentWorkspace
         isOpen={this.state.isOpen.agentConsole}
         onOpenToggle={() => this.toggleModal("agentConsole")}
-        runtime={this.agentRuntime}
+        getMap={this.getAgentMap}
+        getStyle={this.getAgentStyle}
+        setStyle={this.setAgentStyle}
         datasetStore={this.datasetStore}
         onDatasetsChange={this.onDatasetsChange}
-        map={this.mapInstance}
         renderer={this._getRenderer()}
       />
     </div>;

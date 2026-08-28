@@ -40,7 +40,7 @@ For example, after uploading a CSV with `lon`, `lat`, and `value` columns:
 
 ## What the AI can do
 
-- Inspect the live viewport, style, sources, layers, selected layer, clicked features, and loaded datasets.
+- Inspect the live viewport, effective rendered style, sources, layers, rendered features, source features, and loaded datasets.
 - Modify the same live MapLibre map that is open in the visual editor—there is no separate preview or duplicate map state.
 - Turn browser-local CSV data into point-based map layers and generate custom visual treatments with JavaScript.
 - Follow attached reference images when used with a vision model, helping reproduce their colors, labels, hierarchy, and composition.
@@ -71,36 +71,47 @@ This configuration is required whether you use the online demo or run Maputnik A
 
 After starting the app, select **Agent** in the top toolbar, open **Settings**, and enter the API key, Responses API endpoint, and model name.
 
-## Runtime surface
+## JavaScript environment
 
-The agent's `run_javascript` tool receives these live objects:
+The agent's `run_javascript` tool receives three live objects:
 
 | Object | Purpose |
 | --- | --- |
 | `map` | The current MapLibre map and its native API |
-| `style` | The editable MapLibre style object |
-| `runtime` | Viewport, selection, style, and dataset-layer operations |
-| `datasets` | Loaded CSV metadata and rows |
-| `workspace` | A snapshot of the current editor state |
-| `log` | Output returned to the agent conversation |
+| `style` | A writable proxy for the editable MapLibre style document |
+| `datasets` | Browser-local CSV metadata, rows, queries, and point-to-GeoJSON conversion |
+
+Executions support `await`. The tool result comes only from the value returned by
+the code; objects and arrays are serialized automatically.
 
 ```js
 const dataset = datasets.list()[0];
-
-runtime.setViewport({
-  center: [121.47, 31.23],
-  zoom: 11,
+const data = datasets.toGeoJSON(dataset.id, {
+  type: "Point",
+  coordinates: ["lon", "lat"],
 });
+const sourceId = `agent-dataset:${dataset.id}:values-source`;
+const layerId = `agent-dataset:${dataset.id}:value-circles`;
 
-runtime.addDatasetLayer(dataset.id, {
-  geometry: {type: "Point", coordinates: ["lon", "lat"]},
+style.sources[sourceId] = {type: "geojson", data};
+style.layers.push({
+  id: layerId,
+  source: sourceId,
   type: "circle",
+  metadata: {"maputnik:role": "overlay"},
   paint: {
     "circle-radius": 4,
     "circle-color": ["interpolate", ["linear"], ["to-number", ["get", "value"]], 0, "#d9f0d3", 10, "#238b45"],
   },
 });
+
+return {sourceId, layerId, featureCount: data.features.length, zoom: map.getZoom()};
 ```
+
+Every new dataset-related layer must use a unique `agent-dataset:` layer ID and
+source ID, and must set `metadata["maputnik:role"]` to `"overlay"`. This keeps
+dataset overlays separate from the base map during export while allowing one
+dataset to support multiple independent visualizations.
 
 > [!WARNING]
 > Agent-generated JavaScript currently executes in the page runtime and is not sandboxed. The API key and chat settings are stored in browser local storage. Use the agent only in a trusted local environment with trusted models, prompts, and data.
@@ -184,16 +195,19 @@ npm run start
 
 应用启动后，点击顶部工具栏中的 **Agent**，展开 **Settings**，填写 API key、Responses API endpoint 和模型名称。
 
-### Agent 可访问的运行时对象
+### Agent 可访问的 JavaScript 对象
+
+`run_javascript` 支持 `await`，并且只将代码的 `return` 值作为工具结果；对象和数组会自动序列化。
 
 | 对象 | 用途 |
 | --- | --- |
 | `map` | 当前 MapLibre 地图及其原生 API |
-| `style` | 可编辑的 MapLibre 样式对象 |
-| `runtime` | 视野、选择、样式和数据图层操作 |
-| `datasets` | 已加载 CSV 的字段与记录 |
-| `workspace` | 当前编辑器状态的快照 |
-| `log` | 返回到 Agent 对话中的输出 |
+| `style` | 当前可编辑 MapLibre 样式文档的可写代理 |
+| `datasets` | 浏览器本地 CSV 的元数据、记录、查询与点 GeoJSON 转换 |
+
+所有新建的数据集相关图层和 source 都必须使用唯一的 `agent-dataset:` 前缀 ID，
+同时图层必须设置 `metadata["maputnik:role"]` 为 `"overlay"`。因此同一数据集可创建
+多个独立可视化，导出时仍能将数据 overlay 与底图分离。
 
 > [!WARNING]
 > Agent 生成的 JavaScript 目前直接在页面 runtime 中执行，尚未进行沙箱隔离。API key 和对话设置保存在浏览器 local storage 中。请只在可信的本地环境中使用可信的模型、提示词和数据。

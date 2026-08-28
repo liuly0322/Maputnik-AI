@@ -1,13 +1,18 @@
-import type {Map} from "maplibre-gl";
-import type {AgentRuntime} from "./agent-runtime";
+import type {Map, StyleSpecification} from "maplibre-gl";
 import type {DatasetWorkspace} from "./dataset";
+import {createBatchScheduler, createMapProxy, createStyleProxy} from "./agent-proxies";
 
 export type AgentExecutionContext = {
   map: Map | null;
-  style: unknown;
-  runtime: AgentRuntime;
+  style: StyleSpecification;
   datasets: DatasetWorkspace;
-  workspace: unknown;
+};
+
+export type AgentExecutionContextFactoryArgs = {
+  getMap(): Map | null;
+  getStyle(): StyleSpecification;
+  setStyle(style: StyleSpecification): void;
+  datasets: DatasetWorkspace;
 };
 
 export const MAX_TOOL_OUTPUT_UTF8_BYTES = 100_000;
@@ -76,41 +81,59 @@ export function stringifyResult(value: unknown) {
   }
 }
 
+function sanitizeJsonValue(value: unknown): unknown {
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    return 0;
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeJsonValue);
+  }
+  if (value && typeof value === "object") {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) {
+      sanitized[key] = sanitizeJsonValue(child);
+    }
+    return sanitized;
+  }
+  return value;
+}
+
+function sanitizeStyle(style: StyleSpecification): StyleSpecification {
+  return sanitizeJsonValue(style) as StyleSpecification;
+}
+
+export function createAgentExecutionContext(
+  args: AgentExecutionContextFactoryArgs
+): AgentExecutionContext {
+  const scheduleMapStyleSync = createBatchScheduler(() => {
+    const map = args.getMap();
+    const style = map ? map.getStyle() : args.getStyle();
+    args.setStyle(sanitizeStyle(style));
+  });
+  const style = args.getStyle();
+  const scheduleStyleCommit = createBatchScheduler(() => {
+    args.setStyle(sanitizeStyle(style));
+  });
+  const map = args.getMap();
+
+  return {
+    map: map ? createMapProxy(map, scheduleMapStyleSync) : null,
+    style: createStyleProxy(style, scheduleStyleCommit),
+    datasets: args.datasets,
+  };
+}
+
 export async function executeAgentJavaScript(code: string, context: AgentExecutionContext) {
-  const logs: string[] = [];
-  const log = (...values: unknown[]) => {
-    logs.push(values.map(stringifyResult).join(" "));
-  };
-
-  const originalLog = console.log;
-  console.log = (...values: unknown[]) => {
-    log(...values);
-    originalLog(...values);
-  };
-
-  try {
-    const execute = new Function(
-      "map",
-      "style",
-      "runtime",
-      "datasets",
-      "workspace",
-      "log",
-      `return (async () => {\n${code}\n})();`
-    );
-    const result = await execute(
-      context.map,
-      context.style,
-      context.runtime,
-      context.datasets,
-      context.workspace,
-      log
-    );
-    return [...logs, result !== undefined ? `=> ${stringifyResult(result)}` : undefined]
-      .filter(value => value !== undefined)
-      .join("\n");
-  }
-  finally {
-    console.log = originalLog;
-  }
+  const execute = new Function(
+    "map",
+    "style",
+    "datasets",
+    `return (async () => {\n${code}\n})();`
+  );
+  const result = await execute(
+    context.map,
+    context.style,
+    context.datasets
+  );
+  return stringifyResult(result);
 }

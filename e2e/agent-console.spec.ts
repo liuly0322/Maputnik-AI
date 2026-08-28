@@ -93,7 +93,7 @@ describe("agent console", () => {
 
     await when.click("agent-console:tool-details-toggle");
     await then(get.element(".agent-console-tool-code")).shouldContainText(agentCode);
-    await then(get.element(".agent-console-tool-output")).shouldContainText("=> 42");
+    await then(get.element(".agent-console-tool-output")).shouldContainText("42");
     await then(get.element(".agent-console-tool-code")).shouldHaveCss("max-height", "320px");
     await then(get.element(".agent-console-tool-output")).shouldHaveCss("overflow-y", "auto");
     await then(get.element(".agent-console-tool-details")).shouldHaveCss("color", "rgb(164, 164, 164)");

@@ -1,8 +1,8 @@
 import React from "react";
 import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdSend} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
+import type {Map as MapLibreMap, StyleSpecification} from "maplibre-gl";
 
-import type {AgentRuntime} from "../libs/agent-runtime";
 import {
   buildAgentInstructions,
   createFunctionCallOutputItem,
@@ -13,6 +13,7 @@ import {
   type AgentSettings,
 } from "../libs/agent-client";
 import {
+  createAgentExecutionContext,
   executeAgentJavaScript,
   stringifyResult,
   truncateToolOutput,
@@ -24,9 +25,10 @@ import type {DatasetStore} from "../libs/dataset-store";
 import {AgentConversation} from "./AgentConversation";
 
 type AgentConsoleInternalProps = {
-  runtime: AgentRuntime;
+  getMap(): MapLibreMap | null;
+  getStyle(): StyleSpecification;
+  setStyle(style: StyleSpecification): void;
   datasetStore: DatasetStore;
-  onDatasetsChange(): void;
   onOpenData(): void;
 } & WithTranslation;
 
@@ -45,7 +47,6 @@ type AgentConsoleInternalState = {
   activeSessionId: string | null;
   settingsOpen: boolean;
   sidebarOpen: boolean;
-  selectedDatasetIds: string[];
   busy: boolean;
   error?: string;
 };
@@ -131,7 +132,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       activeSessionId: null,
       settingsOpen: false,
       sidebarOpen: true,
-      selectedDatasetIds: props.datasetStore.list().map(dataset => dataset.id),
       busy: false,
     };
   }
@@ -183,22 +183,12 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   }
 
   buildExecutionContext = (): AgentExecutionContext => {
-    const runtime = this.props.runtime;
-    const snapshot = runtime.getState();
-    return {
-      map: runtime.map,
-      style: runtime.style,
-      runtime,
-      datasets: runtime.datasets,
-      workspace: {
-        selection: snapshot.selection,
-        selectedLayerIndex: snapshot.selectedLayerIndex,
-        selectedLayer: snapshot.selectedLayer,
-        layers: snapshot.layers,
-        style: snapshot.style,
-        datasets: snapshot.datasets,
-      },
-    };
+    return createAgentExecutionContext({
+      getMap: this.props.getMap,
+      getStyle: this.props.getStyle,
+      setStyle: this.props.setStyle,
+      datasets: this.props.datasetStore,
+    });
   };
 
   componentWillUnmount() {
@@ -279,17 +269,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         error: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
-  };
-
-  onToggleDataset = (datasetId: string) => {
-    this.setState(state => {
-      const selected = state.selectedDatasetIds.includes(datasetId);
-      return {
-        selectedDatasetIds: selected
-          ? state.selectedDatasetIds.filter(id => id !== datasetId)
-          : [...state.selectedDatasetIds, datasetId],
-      };
-    });
   };
 
   onToggleSidebar = () => {
@@ -392,10 +371,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const sessionId = nextSession.id;
     await this.persistSession(nextSession);
     try {
-      const snapshot = this.props.runtime.getState();
       await this.runStreamingLoop(
         settings,
-        buildAgentInstructions(snapshot, this.state.selectedDatasetIds),
+        buildAgentInstructions(this.props.datasetStore.list()),
         sessionId,
         nextSession.inputItems,
         nextSession.messages,
@@ -539,7 +517,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   render() {
     const {t} = this.props;
-    const liveMap = this.props.runtime.map;
+    const liveMap = this.props.getMap();
     const activeSession = this.state.sessions.find(session => session.id === this.state.activeSessionId);
 
     return <div
@@ -654,16 +632,14 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
                 <div className="agent-console-dataset-chips" data-wd-key="agent-console:dataset-chips">
                   {this.props.datasetStore.list().length === 0 && <p>{t("No datasets loaded.")}</p>}
                   {this.props.datasetStore.list().map(dataset => {
-                    const selected = this.state.selectedDatasetIds.includes(dataset.id);
-                    return <button
+                    return <div
                       key={dataset.id}
-                      className={`agent-console-dataset-chip ${selected ? "agent-console-dataset-chip--active" : ""}`}
-                      onClick={() => this.onToggleDataset(dataset.id)}
+                      className="agent-console-dataset-chip"
                       data-wd-key={`agent-console:dataset-chip:${dataset.id}`}
                     >
                       <span className="agent-console-dataset-chip-name">{dataset.name}</span>
                       <span className="agent-console-dataset-chip-meta">{dataset.rowCount} · {dataset.columns.slice(0, 4).join(", ")}</span>
-                    </button>;
+                    </div>;
                   })}
                 </div>
               </section>

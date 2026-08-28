@@ -1,5 +1,5 @@
-import type {FeatureCollection} from "geojson";
-import { datasetToGeoJSON, datasetToSummary, parseCsv, queryDataset, type Dataset, type DatasetSummary, type DatasetWorkspace, type GeometryMapping } from "./dataset";
+import type {FeatureCollection, Point} from "geojson";
+import { datasetToGeoJSON, datasetToSummary, parseCsv, queryDataset, type Dataset, type DatasetSummary, type DatasetWorkspace, type PointGeometryMapping } from "./dataset";
 
 const DATABASE_NAME = "maputnik-datasets";
 const DATABASE_VERSION = 1;
@@ -68,7 +68,7 @@ export class DatasetStore implements DatasetWorkspace {
     return queryDataset(dataset, predicate);
   }
 
-  toGeoJSON(id: string, geometry: GeometryMapping): FeatureCollection {
+  toGeoJSON(id: string, geometry: PointGeometryMapping): FeatureCollection<Point> {
     const dataset = this.requireDataset(id);
     return datasetToGeoJSON(dataset, geometry);
   }

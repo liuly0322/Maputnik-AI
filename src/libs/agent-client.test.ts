@@ -1,68 +1,148 @@
 import {describe, expect, it} from "vitest";
 
-import {buildAgentInstructions, createUserInputItem, runJavascriptToolDefinition} from "./agent-client";
+import {
+  buildAgentInstructions,
+  createUserInputItem,
+  DATASET_WORKFLOW_EXAMPLE,
+  runJavascriptToolDefinition,
+} from "./agent-client";
+import {createAgentExecutionContext, executeAgentJavaScript} from "./agent-executor";
+import {DATASET_TYPE_REFERENCE, type DatasetSummary} from "./dataset";
+import {DatasetStore} from "./dataset-store";
+
+const datasets: DatasetSummary[] = [
+  {
+    id: "places-2026",
+    name: "places.csv",
+    columns: ["name", "longitude", "latitude", "score"],
+    rows: [],
+    rowCount: 2,
+    createdAt: 100,
+  },
+  {
+    id: "stations-2026",
+    name: "stations.csv",
+    columns: ["station", "lon", "lat"],
+    rows: [],
+    rowCount: 5,
+    createdAt: 200,
+  },
+];
 
 describe("buildAgentInstructions", () => {
-  it("tells the model how to access dataset rows and columns", () => {
-    const instructions = buildAgentInstructions({
-      viewport: {
-        center: [0, 0],
-        zoom: 1,
-        bearing: 0,
-        pitch: 0,
-        bounds: {west: -1, south: -1, east: 1, north: 1},
-      },
-      style: {},
-      layers: [],
-      sources: {},
-      selectedLayerIndex: 0,
-      selectedLayer: undefined,
-      selection: [],
-      datasets: [
-        {
-          id: "ds1",
-          name: "places",
-          columns: ["name", "lon", "lat"],
-          rowCount: 2,
-          createdAt: 0,
-        },
-      ],
-    } as any);
+  it("describes the actual execution and dataset contracts", () => {
+    const instructions = buildAgentInstructions(datasets);
 
-    expect(instructions).toContain("runtime.datasets.get(ds.id)");
-    expect(instructions).toContain("runtime.datasets.query");
-    expect(instructions).toContain("runtime.datasets.toGeoJSON");
-    expect(instructions).toContain("run_javascript is your JavaScript evaluation environment");
-    expect(instructions).toContain("instead of estimating from memory");
-    expect(instructions).toContain("An overlay layer visualizes, colors, filters, or otherwise encodes any user-provided dataset");
-    expect(instructions).toContain("automatically adds the agent-dataset: prefix and metadata maputnik:role=overlay");
-    expect(instructions).toContain("verify every such layer has the agent-dataset: prefix or maputnik:role=overlay");
+    expect(instructions).toContain("provides three objects:");
+    expect(instructions).toContain("- map: the live MapLibre Map instance.");
+    expect(instructions).toContain("- style: a writable proxy");
+    expect(instructions).toContain("- datasets: the browser-local CSV dataset workspace.");
+    expect(instructions).toContain(DATASET_TYPE_REFERENCE);
+    expect(instructions).toContain("End every execution with return.");
+    expect(instructions).toContain("Set layer.id to a unique descriptive ID beginning with agent-dataset:.");
+    expect(instructions).toContain("Set layer.metadata[\"maputnik:role\"] to \"overlay\".");
+    expect(instructions).toContain(DATASET_WORKFLOW_EXAMPLE);
   });
 
-  it("only includes selected datasets in the context", () => {
-    const snapshot: any = {
-      viewport: {
-        center: [0, 0],
-        zoom: 1,
-        bearing: 0,
-        pitch: 0,
-        bounds: {west: -1, south: -1, east: 1, north: 1},
-      },
-      style: {},
-      layers: [],
-      sources: {},
-      selectedLayerIndex: 0,
-      selectedLayer: undefined,
-      selection: [],
-      datasets: [
-        {id: "one", name: "one", columns: [], rowCount: 1, rows: [], createdAt: 0},
-        {id: "two", name: "two", columns: [], rowCount: 2, rows: [], createdAt: 0},
-      ],
-    };
+  it("includes metadata for every loaded dataset without dynamic editor state", () => {
+    const instructions = buildAgentInstructions(datasets);
+    const catalog = JSON.parse(instructions.split("# Dataset catalog\n\n")[1]);
 
-    const instructions = buildAgentInstructions(snapshot, ["two"]);
-    expect(instructions).toContain("two");
-    expect(instructions).not.toContain("one:");
+    expect(catalog).toEqual([
+      {
+        id: "places-2026",
+        name: "places.csv",
+        columns: ["name", "longitude", "latitude", "score"],
+        rowCount: 2,
+        createdAt: 100,
+      },
+      {
+        id: "stations-2026",
+        name: "stations.csv",
+        columns: ["station", "lon", "lat"],
+        rowCount: 5,
+        createdAt: 200,
+      },
+    ]);
+    const environmentObjects = Array.from(
+      instructions.matchAll(/^- ([a-z]+):/gm),
+      match => match[1]
+    );
+    expect(environmentObjects).toEqual(["map", "style", "datasets"]);
+    expect(instructions).not.toMatch(/\bruntime\b/);
+    expect(instructions).not.toMatch(/\blog\b/);
+    expect(instructions).not.toContain("selectedLayer");
+    expect(instructions).not.toContain("selection count");
+    expect(instructions).not.toContain("Current live");
+  });
+
+  it("executes the shared dataset workflow example through the real executor", async () => {
+    const store = new DatasetStore();
+    const dataset = await store.addCsv(
+      "values.csv",
+      "place,longitude,latitude,score\nIncluded,120.5,30.25,20\nFiltered,121,31,5"
+    );
+    const style: any = {version: 8, sources: {}, layers: []};
+    let committedStyle: any = style;
+    const map: any = {
+      getCenter: () => ({lng: 120, lat: 30}),
+      getZoom: () => 6,
+      getStyle: () => committedStyle,
+    };
+    const context = createAgentExecutionContext({
+      getMap: () => map,
+      getStyle: () => style,
+      setStyle: nextStyle => {
+        committedStyle = nextStyle;
+      },
+      datasets: store,
+    });
+    const code = DATASET_WORKFLOW_EXAMPLE
+      .replace("<exact ID from the dataset catalog>", dataset.id)
+      .replace('const longitudeColumn = "lon";', 'const longitudeColumn = "longitude";')
+      .replace('const latitudeColumn = "lat";', 'const latitudeColumn = "latitude";')
+      .replace('const valueColumn = "value";', 'const valueColumn = "score";');
+
+    const output = JSON.parse(await executeAgentJavaScript(code, context));
+    const sourceId = `agent-dataset:${dataset.id}:normalized-values`;
+    const layerId = `agent-dataset:${dataset.id}:normalized-value-circles`;
+    const source = committedStyle.sources[sourceId];
+    const createdLayer = committedStyle.layers.find((layer: any) => layer.id === layerId);
+
+    expect(source.data.type).toBe("FeatureCollection");
+    expect(source.data.features).toEqual([
+      {
+        type: "Feature",
+        geometry: {type: "Point", coordinates: [120.5, 30.25]},
+        properties: {
+          place: "Included",
+          longitude: "120.5",
+          latitude: "30.25",
+          score: "20",
+          normalizedValue: 0.2,
+        },
+      },
+    ]);
+    expect(sourceId.startsWith("agent-dataset:")).toBe(true);
+    expect(createdLayer).toMatchObject({
+      id: layerId,
+      source: sourceId,
+      metadata: {"maputnik:role": "overlay"},
+    });
+    expect(output).toMatchObject({
+      dataset: {
+        id: dataset.id,
+        name: "values.csv",
+        columns: ["place", "longitude", "latitude", "score"],
+        inputRowCount: 2,
+        validPointFeatureCount: 2,
+        outputFeatureCount: 1,
+      },
+      map: {center: [120, 30], zoom: 6},
+      style: {sourceCount: 1, layerCount: 1},
+      overlayVerification: {layerIdHasPrefix: true, role: "overlay"},
+    });
+    expect(output.style.createdLayer.id).toBe(layerId);
   });
 });
 
@@ -77,8 +157,9 @@ describe("createUserInputItem", () => {
 });
 
 describe("runJavascriptToolDefinition", () => {
-  it("tells the model to run code for calculations instead of estimating", () => {
+  it("documents the injected objects and return-only result", () => {
     const tool = runJavascriptToolDefinition();
-    expect(tool.description).toContain("instead of estimating");
+    expect(tool.description).toContain("map, style, and datasets");
+    expect(tool.parameters.properties.code.description).toContain("End with return");
   });
 });
