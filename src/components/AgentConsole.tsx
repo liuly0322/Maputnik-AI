@@ -17,6 +17,7 @@ import {
   stringifyResult,
   type AgentExecutionContext,
 } from "../libs/agent-executor";
+import {AgentSessionStore, type AgentSession, type ChatMessage} from "../libs/agent-session-store";
 import type {DatasetStore} from "../libs/dataset-store";
 
 type AgentConsoleInternalProps = {
@@ -26,22 +27,6 @@ type AgentConsoleInternalProps = {
   onOpenData(): void;
 } & WithTranslation;
 
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant" | "tool";
-  content: string;
-  images?: string[];
-};
-
-type AgentSession = {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  inputItems: AgentInputItem[];
-  createdAt: number;
-  updatedAt: number;
-};
-
 type AgentConsoleInternalState = {
   apiKey: string;
   endpoint: string;
@@ -49,6 +34,7 @@ type AgentConsoleInternalState = {
   input: string;
   pendingImages: string[];
   sessions: AgentSession[];
+  sessionsReady: boolean;
   activeSessionId: string | null;
   settingsOpen: boolean;
   sidebarOpen: boolean;
@@ -58,7 +44,6 @@ type AgentConsoleInternalState = {
 };
 
 const SETTINGS_KEY = "maputnik:agent_settings";
-const SESSIONS_KEY = "maputnik:agent_sessions";
 const MAX_TOOL_ROUNDS = 20;
 
 function generateId() {
@@ -85,28 +70,6 @@ function loadSettings(): AgentSettings {
 function saveSettings(settings: AgentSettings) {
   try {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }
-  catch {
-    // LocalStorage can be unavailable or full.
-  }
-}
-
-function loadSessions(): AgentSession[] {
-  try {
-    const raw = window.localStorage.getItem(SESSIONS_KEY);
-    if (raw) {
-      return JSON.parse(raw) as AgentSession[];
-    }
-  }
-  catch {
-    // Fall through.
-  }
-  return [];
-}
-
-function saveSessions(sessions: AgentSession[]) {
-  try {
-    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
   }
   catch {
     // LocalStorage can be unavailable or full.
@@ -143,26 +106,55 @@ function extractAssistantText(item: Record<string, any>) {
 class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, AgentConsoleInternalState> {
   private imageInputRef = React.createRef<HTMLInputElement>();
   private messagesEndRef = React.createRef<HTMLDivElement>();
+  private sessionStore = new AgentSessionStore();
   private settingsSaveTimer: number | null = null;
+  private mounted = false;
 
   constructor(props: AgentConsoleInternalProps) {
     super(props);
     const settings = loadSettings();
-    const sessions = loadSessions();
     this.state = {
       apiKey: settings.apiKey,
       endpoint: settings.endpoint,
       model: settings.model,
       input: "",
       pendingImages: [],
-      sessions,
-      activeSessionId: sessions[0]?.id ?? null,
+      sessions: [],
+      sessionsReady: false,
+      activeSessionId: null,
       settingsOpen: false,
       sidebarOpen: true,
       selectedDatasetIds: props.datasetStore.list().map(dataset => dataset.id),
       busy: false,
     };
   }
+
+  componentDidMount() {
+    this.mounted = true;
+    void this.loadSessions();
+  }
+
+  loadSessions = async () => {
+    try {
+      const sessions = await this.sessionStore.init();
+      if (!this.mounted) {
+        this.sessionStore.close();
+        return;
+      }
+      this.setState({
+        sessions,
+        sessionsReady: true,
+        activeSessionId: sessions[0]?.id ?? null,
+      });
+    }
+    catch (error) {
+      if (!this.mounted) return;
+      this.setState({
+        sessionsReady: true,
+        error: `${this.props.t("Could not load agent sessions")}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  };
 
   componentDidUpdate(_prevProps: AgentConsoleInternalProps, prevState: AgentConsoleInternalState) {
     if (prevState.sessions === this.state.sessions) {
@@ -199,10 +191,12 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   };
 
   componentWillUnmount() {
+    this.mounted = false;
     if (this.settingsSaveTimer !== null) {
       window.clearTimeout(this.settingsSaveTimer);
     }
     this.saveSettingsNow();
+    this.sessionStore.close();
   }
 
   saveSettingsNow = () => {
@@ -258,9 +252,16 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }));
   };
 
-  persistSessions = (sessions: AgentSession[]) => {
-    saveSessions(sessions);
-    this.setState({sessions});
+  persistSession = async (session: AgentSession) => {
+    try {
+      await this.sessionStore.put(session);
+    }
+    catch (error) {
+      if (!this.mounted) return;
+      this.setState({
+        error: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
   };
 
   onToggleDataset = (datasetId: string) => {
@@ -279,6 +280,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   };
 
   onNewSession = () => {
+    if (!this.state.sessionsReady) return;
     const session: AgentSession = {
       id: generateId(),
       title: "New session",
@@ -288,8 +290,8 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       updatedAt: Date.now(),
     };
     const sessions = [session, ...this.state.sessions];
-    this.persistSessions(sessions);
-    this.setState({activeSessionId: session.id, input: "", pendingImages: [], error: undefined});
+    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], error: undefined});
+    void this.persistSession(session);
   };
 
   onSelectSession = (sessionId: string) => {
@@ -301,13 +303,18 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const activeSessionId = this.state.activeSessionId === sessionId
       ? sessions[0]?.id ?? null
       : this.state.activeSessionId;
-    this.persistSessions(sessions);
-    this.setState({activeSessionId, input: "", pendingImages: [], error: undefined});
+    this.setState({sessions, activeSessionId, input: "", pendingImages: [], error: undefined});
+    void this.sessionStore.delete(sessionId).catch(error => {
+      if (!this.mounted) return;
+      this.setState({
+        error: `${this.props.t("Could not delete agent session")}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    });
   };
 
   onSend = async () => {
     const text = this.state.input.trim();
-    if (!text || this.state.busy) {
+    if (!text || this.state.busy || !this.state.sessionsReady) {
       return;
     }
 
@@ -355,8 +362,8 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       activeSessionId = session.id;
     }
 
-    this.persistSessions(sessions);
     this.setState({
+      sessions,
       input: "",
       pendingImages: [],
       activeSessionId,
@@ -366,6 +373,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
     const nextSession = sessions.find(session => session.id === activeSessionId)!;
     const sessionId = nextSession.id;
+    await this.persistSession(nextSession);
     try {
       const snapshot = this.props.runtime.getState();
       await this.runStreamingLoop(
@@ -399,13 +407,24 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     let inputItems = initialInputItems;
     let messages = initialMessages;
     let functionCalls: Array<Record<string, any>> = [];
+    let sessionDirty = false;
 
     const updateUi = () => {
       sessions = updateSession(sessions, sessionId, {
         messages,
         inputItems,
       });
-      this.persistSessions(sessions);
+      sessionDirty = true;
+      this.setState({sessions});
+    };
+
+    const persistUi = async () => {
+      if (!sessionDirty) return;
+      const session = sessions.find(candidate => candidate.id === sessionId);
+      if (session) {
+        await this.persistSession(session);
+      }
+      sessionDirty = false;
     };
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
@@ -430,6 +449,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         }
         else if (event.type === "response.output_item.done" && data.item) {
           const item = data.item;
+          inputItems = [...inputItems, item];
           if (item.type === "function_call") {
             functionCalls.push(item);
           }
@@ -444,17 +464,19 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
             else if (messageId) {
               messages = messages.map(message => message.id === messageId ? {...message, content: text} : message);
             }
-            updateUi();
           }
+          updateUi();
+          await persistUi();
         }
       }
+
+      await persistUi();
 
       if (functionCalls.length === 0) {
         break;
       }
 
       for (const functionCall of functionCalls) {
-        inputItems = [...inputItems, functionCall];
         let code = "";
         try {
           code = JSON.parse(functionCall.arguments ?? "{}").code ?? "";
@@ -472,6 +494,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         inputItems = [...inputItems, createFunctionCallOutputItem(functionCall.call_id, output)];
         messages = [...messages, {id: generateId(), role: "tool", content: output || "(no output)"}];
         updateUi();
+        await persistUi();
       }
     }
 
@@ -482,6 +505,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         content: `Reached the maximum of ${MAX_TOOL_ROUNDS} tool calls. Send another message to continue.`,
       }];
       updateUi();
+      await persistUi();
     }
   };
 
@@ -555,7 +579,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
             <section className="agent-console-control-block">
               <div className="agent-console-sessions-header">
                 <h1>{t("Sessions")}</h1>
-                <button className="maputnik-button" onClick={this.onNewSession} data-wd-key="agent-console:new-session">
+                <button className="maputnik-button" onClick={this.onNewSession} disabled={!this.state.sessionsReady} data-wd-key="agent-console:new-session">
                   <MdAdd />
                   {t("New session")}
                 </button>
@@ -670,7 +694,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
               onChange={this.onInputChange}
               onKeyDown={this.onKeyDown}
               placeholder={t("Describe what you want to inspect or change...")}
-              disabled={this.state.busy}
+              disabled={this.state.busy || !this.state.sessionsReady}
               data-wd-key="agent-console:input"
             />
             <div className="agent-console-toolbar">
@@ -678,7 +702,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
                 <MdImage />
                 {t("Add image")}
               </button>
-              <button className="maputnik-button" onClick={() => void this.onSend()} disabled={this.state.busy} data-wd-key="agent-console:send">
+              <button className="maputnik-button" onClick={() => void this.onSend()} disabled={this.state.busy || !this.state.sessionsReady} data-wd-key="agent-console:send">
                 <MdSend />
                 {t("Send")}
               </button>
