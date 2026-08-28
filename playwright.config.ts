@@ -1,10 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import {cpus} from "node:os";
 
 const isCI = !!process.env.CI;
 // When the app is already served elsewhere (e.g. the docker e2e job) set
 // E2E_NO_WEBSERVER=1 so Playwright does not start its own dev server.
 const useExternalServer = !!process.env.E2E_NO_WEBSERVER;
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8889/";
+const workers = Math.min(4, Math.max(1, Math.floor(cpus().length * 0.5)));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -12,6 +14,7 @@ export default defineConfig({
   globalSetup: "./e2e/utils/e2e-setup.ts",
   globalTeardown: "./e2e/utils/e2e-teardown.ts",
   fullyParallel: true,
+  workers,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : "list",
