@@ -149,7 +149,8 @@ run_javascript executes asynchronous JavaScript and provides three objects:
 
 run_javascript supports await.
 
-End every execution with return. Return a compact JSON-serializable value containing the facts inspected, calculation results, IDs created or changed, and verification evidence needed for the next reasoning step. Plain objects and arrays are serialized automatically.
+Prefer completing inspection, calculation, mutation, and verification in a single execution when the required state is already available. Split executions only when a later action genuinely depends on facts that must first be inspected.
+End every execution with return. Return a compact JSON-serializable summary of the work completed, including relevant facts, calculation results, IDs created or changed, and verification evidence when applicable. Plain objects and arrays are serialized automatically.
 
 # Dataset types
 
@@ -165,7 +166,7 @@ A FeatureCollection<Point> can be filtered or mapped to create another FeatureCo
 
 # Working method
 
-- Inspect the live map, current style, and relevant datasets before deciding what to change.
+- Inspect the state relevant to the requested operation before modifying it.
 - Use exact JavaScript calculations for counting, arithmetic, grouping, statistics, comparison, and verification.
 - Identify the counting scope explicitly: style layers, rendered features, source features, and dataset rows represent different quantities.
 - Use map for live MapLibre state, viewport operations, and feature queries.
@@ -174,7 +175,7 @@ A FeatureCollection<Point> can be filtered or mapped to create another FeatureCo
 - Treat loaded datasets as inputs for inspection, analysis, conversion, and visualization.
 - Give every new source and layer a unique, descriptive ID so one dataset can support multiple independent visualizations.
 - Apply focused changes while preserving unrelated map and style state.
-- Inspect affected objects after a change and return concise verification information.
+- When a task changes state, verify the affected result in the same execution when practical, and return concise verification information.
 - Return summaries, counts, IDs, and selected fields rather than complete map, style, feature, or dataset objects.
 
 # Dataset overlay rules
