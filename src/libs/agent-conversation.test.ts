@@ -1,13 +1,66 @@
 import {describe, expect, it} from "vitest";
 
-import {groupAgentConversation} from "./agent-conversation";
-import type {ChatMessage} from "./agent-session-store";
+import {createChatMessages, groupAgentConversation, type ChatMessage} from "./agent-conversation";
 
 function message(id: string, role: ChatMessage["role"], content = id): ChatMessage {
   return {id, role, content};
 }
 
 describe("groupAgentConversation", () => {
+  it("restores display messages from input items", () => {
+    const inputItems = [{
+      type: "message",
+      role: "user",
+      content: [
+        {type: "input_text", text: "Show this image"},
+        {type: "input_image", image_url: "data:image/png;base64,image"},
+      ],
+    }, {
+      id: "assistant-1",
+      type: "message",
+      role: "assistant",
+      content: [{type: "output_text", text: "I will inspect it."}],
+    }, {
+      type: "function_call",
+      name: "run_javascript",
+      call_id: "call-1",
+      arguments: JSON.stringify({code: "return map.getZoom();"}),
+    }, {
+      type: "function_call_output",
+      call_id: "call-1",
+      output: "12",
+    }];
+
+    const messages = createChatMessages(inputItems);
+    expect(messages).toEqual([{
+      id: "input-item-0",
+      role: "user",
+      content: "Show this image",
+      images: ["data:image/png;base64,image"],
+    }, {
+      id: "input-item-assistant-1",
+      role: "assistant",
+      content: "I will inspect it.",
+    }, {
+      id: "input-item-call-1-output",
+      role: "tool",
+      content: "12",
+      callId: "call-1",
+    }]);
+    expect(groupAgentConversation(messages, inputItems)[0].items).toEqual([{
+      type: "assistant",
+      message: messages[1],
+      tools: [{
+        ...messages[2],
+        toolCall: {
+          name: "run_javascript",
+          callId: "call-1",
+          code: "return map.getZoom();",
+        },
+      }],
+    }]);
+  });
+
   it("groups messages into user turns", () => {
     const turns = groupAgentConversation([
       message("user-1", "user"),

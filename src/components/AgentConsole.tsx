@@ -18,7 +18,8 @@ import {
   truncateToolOutput,
   type AgentExecutionContext,
 } from "../libs/agent-executor";
-import {AgentSessionStore, type AgentSession, type ChatMessage} from "../libs/agent-session-store";
+import {createChatMessages, type ChatMessage} from "../libs/agent-conversation";
+import {AgentSessionStore, type AgentSession} from "../libs/agent-session-store";
 import type {DatasetStore} from "../libs/dataset-store";
 import {AgentConversation} from "./AgentConversation";
 
@@ -29,13 +30,17 @@ type AgentConsoleInternalProps = {
   onOpenData(): void;
 } & WithTranslation;
 
+type AgentConsoleSession = AgentSession & {
+  messages: ChatMessage[];
+};
+
 type AgentConsoleInternalState = {
   apiKey: string;
   endpoint: string;
   model: string;
   input: string;
   pendingImages: string[];
-  sessions: AgentSession[];
+  sessions: AgentConsoleSession[];
   sessionsReady: boolean;
   activeSessionId: string | null;
   settingsOpen: boolean;
@@ -79,9 +84,9 @@ function saveSettings(settings: AgentSettings) {
 }
 
 function updateSession(
-  sessions: AgentSession[],
+  sessions: AgentConsoleSession[],
   sessionId: string,
-  patch: Partial<AgentSession>
+  patch: Partial<AgentConsoleSession>
 ) {
   return sessions.map(session => {
     if (session.id !== sessionId) {
@@ -138,7 +143,11 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   loadSessions = async () => {
     try {
-      const sessions = await this.sessionStore.init();
+      const storedSessions = await this.sessionStore.init();
+      const sessions = storedSessions.map(session => ({
+        ...session,
+        messages: createChatMessages(session.inputItems),
+      }));
       if (!this.mounted) {
         this.sessionStore.close();
         return;
@@ -254,9 +263,15 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }));
   };
 
-  persistSession = async (session: AgentSession) => {
+  persistSession = async (session: AgentConsoleSession) => {
     try {
-      await this.sessionStore.put(session);
+      await this.sessionStore.put({
+        id: session.id,
+        title: session.title,
+        inputItems: session.inputItems,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+      });
     }
     catch (error) {
       if (!this.mounted) return;
@@ -283,7 +298,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   onNewSession = () => {
     if (!this.state.sessionsReady) return;
-    const session: AgentSession = {
+    const session: AgentConsoleSession = {
       id: generateId(),
       title: "New session",
       messages: [],
@@ -352,7 +367,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       });
     }
     else {
-      const session: AgentSession = {
+      const session: AgentConsoleSession = {
         id: generateId(),
         title: text.slice(0, 60),
         messages: [userMessage],
@@ -403,30 +418,29 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     sessionId: string,
     initialInputItems: AgentInputItem[],
     initialMessages: ChatMessage[],
-    initialSessions: AgentSession[]
+    initialSessions: AgentConsoleSession[]
   ) => {
     let sessions = initialSessions;
     let inputItems = initialInputItems;
     let messages = initialMessages;
     let functionCalls: Array<Record<string, any>> = [];
-    let sessionDirty = false;
+    const updateMessages = () => {
+      sessions = updateSession(sessions, sessionId, {
+        messages,
+      });
+      this.setState({sessions});
+    };
 
-    const updateUi = () => {
+    const commitInputItems = async () => {
       sessions = updateSession(sessions, sessionId, {
         messages,
         inputItems,
       });
-      sessionDirty = true;
       this.setState({sessions});
-    };
-
-    const persistUi = async () => {
-      if (!sessionDirty) return;
       const session = sessions.find(candidate => candidate.id === sessionId);
       if (session) {
         await this.persistSession(session);
       }
-      sessionDirty = false;
     };
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
@@ -447,7 +461,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
             if (message.id !== messageId) return message;
             return {...message, content: message.content + data.delta};
           });
-          updateUi();
+          updateMessages();
         }
         else if (event.type === "response.output_item.done" && data.item) {
           const item = data.item;
@@ -467,12 +481,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
               messages = messages.map(message => message.id === messageId ? {...message, content: text} : message);
             }
           }
-          updateUi();
-          await persistUi();
+          await commitInputItems();
         }
       }
-
-      await persistUi();
 
       if (functionCalls.length === 0) {
         break;
@@ -495,9 +506,13 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         }
         output = truncateToolOutput(output);
         inputItems = [...inputItems, createFunctionCallOutputItem(functionCall.call_id, output)];
-        messages = [...messages, {id: generateId(), role: "tool", content: output || "(no output)"}];
-        updateUi();
-        await persistUi();
+        messages = [...messages, {
+          id: generateId(),
+          role: "tool",
+          content: output || "(no output)",
+          callId: functionCall.call_id,
+        }];
+        await commitInputItems();
       }
     }
 
@@ -507,8 +522,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         role: "assistant",
         content: `Reached the maximum of ${MAX_TOOL_ROUNDS} tool calls. Send another message to continue.`,
       }];
-      updateUi();
-      await persistUi();
+      updateMessages();
     }
   };
 

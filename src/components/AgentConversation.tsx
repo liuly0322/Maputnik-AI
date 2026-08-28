@@ -3,11 +3,18 @@ import Markdown from "react-markdown";
 import {MdChevronRight, MdCode} from "react-icons/md";
 import {useTranslation} from "react-i18next";
 
-import {groupAgentConversation, type AgentConversationMessage} from "../libs/agent-conversation";
-import type {AgentSession, ChatMessage} from "../libs/agent-session-store";
+import {
+  groupAgentConversation,
+  type AgentConversationMessage,
+  type ChatMessage,
+} from "../libs/agent-conversation";
+import type {AgentInputItem} from "../libs/agent-client";
 
 type AgentConversationProps = {
-  session?: AgentSession;
+  session?: {
+    messages: ChatMessage[];
+    inputItems: AgentInputItem[];
+  };
   busy: boolean;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 };

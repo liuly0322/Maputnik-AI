@@ -1,5 +1,12 @@
 import type {AgentInputItem} from "./agent-client";
-import type {ChatMessage} from "./agent-session-store";
+
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  content: string;
+  images?: string[];
+  callId?: string;
+};
 
 export type AgentConversationMessage = ChatMessage & {
   toolCall?: {
@@ -46,6 +53,61 @@ function appendResponseMessage(turn: AgentConversationTurn, message: AgentConver
   }
 }
 
+function extractMessageText(item: AgentInputItem) {
+  if (typeof item.content === "string") return item.content;
+  if (!Array.isArray(item.content)) return "";
+  return item.content
+    .map((part: Record<string, any>) => part.text ?? part.output_text ?? "")
+    .filter((text: unknown): text is string => typeof text === "string" && text.length > 0)
+    .join("\n");
+}
+
+function extractMessageImages(item: AgentInputItem) {
+  if (!Array.isArray(item.content)) return [];
+  return item.content
+    .filter((part: Record<string, any>) => part.type === "input_image" && typeof part.image_url === "string")
+    .map((part: Record<string, any>) => part.image_url as string);
+}
+
+function extractToolOutput(item: AgentInputItem) {
+  if (item.output === undefined || item.output === null || item.output === "") return "(no output)";
+  if (typeof item.output === "string") return item.output;
+  try {
+    return JSON.stringify(item.output, null, 2);
+  }
+  catch {
+    return String(item.output);
+  }
+}
+
+export function createChatMessages(inputItems: AgentInputItem[]): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+
+  inputItems.forEach((item, index) => {
+    if (item.type === "message" && (item.role === "user" || item.role === "assistant")) {
+      const content = extractMessageText(item);
+      if (item.role === "assistant" && !content) return;
+      const images = item.role === "user" ? extractMessageImages(item) : [];
+      messages.push({
+        id: `input-item-${typeof item.id === "string" ? item.id : index}`,
+        role: item.role,
+        content,
+        ...(images.length > 0 ? {images} : {}),
+      });
+    }
+    else if (item.type === "function_call_output") {
+      messages.push({
+        id: `input-item-${typeof item.call_id === "string" ? item.call_id : index}-output`,
+        role: "tool",
+        content: extractToolOutput(item),
+        callId: typeof item.call_id === "string" ? item.call_id : undefined,
+      });
+    }
+  });
+
+  return messages;
+}
+
 function extractToolCall(item: AgentInputItem): AgentConversationMessage["toolCall"] | undefined {
   if (item.type !== "function_call") return undefined;
 
@@ -75,17 +137,26 @@ function attachToolCalls(
   const functionCalls = inputItems
     .map(extractToolCall)
     .filter((toolCall): toolCall is NonNullable<AgentConversationMessage["toolCall"]> => !!toolCall);
+  const functionCallsById = new Map(functionCalls
+    .filter(toolCall => toolCall.callId)
+    .map(toolCall => [toolCall.callId, toolCall] as const));
+  const matchedFunctionCalls = new Set<NonNullable<AgentConversationMessage["toolCall"]>>();
   let functionCallIndex = 0;
 
   const conversationMessages: AgentConversationMessage[] = messages.map(message => {
     if (message.role !== "tool") return message;
-    const toolCall = functionCalls[functionCallIndex];
-    functionCallIndex += 1;
+    let toolCall = message.callId ? functionCallsById.get(message.callId) : undefined;
+    while (!toolCall && functionCallIndex < functionCalls.length) {
+      const candidate = functionCalls[functionCallIndex];
+      functionCallIndex += 1;
+      if (!matchedFunctionCalls.has(candidate)) toolCall = candidate;
+    }
+    if (toolCall) matchedFunctionCalls.add(toolCall);
     return toolCall ? {...message, toolCall} : message;
   });
 
   if (includePendingToolCalls) {
-    functionCalls.slice(functionCallIndex).forEach((toolCall, index) => {
+    functionCalls.filter(toolCall => !matchedFunctionCalls.has(toolCall)).forEach((toolCall, index) => {
       conversationMessages.push({
         id: `pending-tool-${toolCall.callId ?? index}`,
         role: "tool",

@@ -1,16 +1,8 @@
 import type {AgentInputItem} from "./agent-client";
 
-export type ChatMessage = {
-  id: string;
-  role: "user" | "assistant" | "tool";
-  content: string;
-  images?: string[];
-};
-
 export type AgentSession = {
   id: string;
   title: string;
-  messages: ChatMessage[];
   inputItems: AgentInputItem[];
   createdAt: number;
   updatedAt: number;
@@ -21,15 +13,24 @@ const DATABASE_VERSION = 1;
 const OBJECT_STORE_NAME = "sessions";
 export const LEGACY_AGENT_SESSIONS_KEY = "maputnik:agent_sessions";
 
-function isAgentSession(value: unknown): value is AgentSession {
-  if (!value || typeof value !== "object") return false;
+function parseAgentSession(value: unknown): AgentSession | null {
+  if (!value || typeof value !== "object") return null;
   const session = value as Partial<AgentSession>;
-  return typeof session.id === "string"
+  if (!(typeof session.id === "string"
     && typeof session.title === "string"
-    && Array.isArray(session.messages)
     && Array.isArray(session.inputItems)
     && typeof session.createdAt === "number"
-    && typeof session.updatedAt === "number";
+    && typeof session.updatedAt === "number")) {
+    return null;
+  }
+
+  return {
+    id: session.id,
+    title: session.title,
+    inputItems: session.inputItems,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  };
 }
 
 function getLocalStorage(): Storage | null {
@@ -46,9 +47,11 @@ function readLegacySessions(storage: Storage | null): AgentSession[] | null {
   try {
     const raw = storage.getItem(LEGACY_AGENT_SESSIONS_KEY);
     if (!raw) return null;
-    const sessions = JSON.parse(raw) as unknown;
-    if (!Array.isArray(sessions) || !sessions.every(isAgentSession)) return null;
-    return sessions;
+    const values = JSON.parse(raw) as unknown;
+    if (!Array.isArray(values)) return null;
+    const sessions = values.map(parseAgentSession);
+    if (sessions.some(session => !session)) return null;
+    return sessions as AgentSession[];
   }
   catch {
     return null;
@@ -73,7 +76,9 @@ export class AgentSessionStore {
 
     try {
       this.database = await this.openDatabase();
-      const storedSessions = (await this.readAll()).filter(isAgentSession);
+      const storedSessions = (await this.readAll())
+        .map(parseAgentSession)
+        .filter((session): session is AgentSession => !!session);
       const sessionsById = new Map(storedSessions.map(session => [session.id, session]));
 
       if (legacySessions) {
@@ -114,7 +119,11 @@ export class AgentSessionStore {
   }
 
   put(session: AgentSession): Promise<void> {
-    this.sessions.set(session.id, session);
+    const storedSession = parseAgentSession(session);
+    if (!storedSession) {
+      return Promise.reject(new Error("Invalid agent session"));
+    }
+    this.sessions.set(storedSession.id, storedSession);
     return this.enqueueWrite(async () => {
       if (this.useLocalStorageFallback) {
         this.persistFallback();
@@ -122,7 +131,7 @@ export class AgentSessionStore {
       }
       const database = this.database;
       if (!database) return;
-      await this.transact(database, "readwrite", store => store.put(session));
+      await this.transact(database, "readwrite", store => store.put(storedSession));
     });
   }
 
@@ -193,7 +202,8 @@ export class AgentSessionStore {
       const transaction = database.transaction(OBJECT_STORE_NAME, "readwrite");
       const store = transaction.objectStore(OBJECT_STORE_NAME);
       for (const session of sessions) {
-        store.put(session);
+        const storedSession = parseAgentSession(session);
+        if (storedSession) store.put(storedSession);
       }
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
@@ -201,10 +211,10 @@ export class AgentSessionStore {
     });
   }
 
-  private async readAll(): Promise<AgentSession[]> {
+  private async readAll(): Promise<unknown[]> {
     const database = this.database;
     if (!database) return [];
-    return this.transact(database, "readonly", store => store.getAll()) as Promise<AgentSession[]>;
+    return this.transact(database, "readonly", store => store.getAll()) as Promise<unknown[]>;
   }
 
   private transact<T>(database: IDBDatabase, mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
