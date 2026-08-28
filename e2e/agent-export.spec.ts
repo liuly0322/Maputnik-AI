@@ -4,12 +4,16 @@ import {currentPage} from "./utils/fixtures";
 
 const csv = "name,lon,lat,value\nA,1,2,10\nB,3,4,20";
 const agentCode = [
-  "const id = runtime.datasets.list()[0].id;",
-  "runtime.addDatasetLayer(id, {",
-  "  geometry: { type: \"Point\", coordinates: [\"lon\", \"lat\"] },",
-  "  type: \"circle\",",
-  "  paint: { \"circle-radius\": [\"get\", \"value\"] }",
+  "const id = datasets.list()[0].id;",
+  "const data = datasets.toGeoJSON(id, {type: \"Point\", coordinates: [\"lon\", \"lat\"]});",
+  "const created = [\"values\", \"highlights\"].map((name, index) => {",
+  "  const sourceId = `agent-dataset:${id}:${name}-source`;",
+  "  const layerId = `agent-dataset:${id}:${name}`;",
+  "  style.sources[sourceId] = {type: \"geojson\", data};",
+  "  style.layers.push({id: layerId, type: \"circle\", source: sourceId, metadata: {\"maputnik:role\": \"overlay\"}, paint: {\"circle-radius\": index + 4}});",
+  "  return {sourceId, layerId};",
   "});",
+  "return {created};",
 ].join("\n");
 
 async function mockResponsesApi(page: any) {
@@ -45,7 +49,7 @@ describe("agent export", () => {
 
   beforeEach(async () => {
     await given.setupMockBackedResponses();
-    await when.setStyle("geojson");
+    await when.setStyle("layer");
   });
 
   test("exports base and overlay PNGs for agent dataset layers", async () => {
@@ -75,15 +79,20 @@ describe("agent export", () => {
     expect(baseDownload.suggestedFilename()).toBe("test_style-base.png");
     expect(overlayDownload.suggestedFilename()).toBe("test_style-overlay.png");
 
-    await then(
-      get.styleFromLocalStorage().then(style => style.layers[0].id.startsWith("agent-dataset:"))
-    ).shouldEqual(true);
-
-    const visibility = await page.evaluate(() => {
-      const map = (window as any).maputnikRuntime.map;
-      const layer = map.getStyle().layers.find((entry: any) => entry.id.startsWith("agent-dataset:"));
-      return layer.layout?.visibility ?? "visible";
+    await then(get.styleFromLocalStorage()).shouldDeepNestedInclude({
+      layers: [
+        {id: "background", type: "background"},
+        {
+          id: expect.stringMatching(/^agent-dataset:.*:values$/),
+          source: expect.stringMatching(/^agent-dataset:.*:values-source$/),
+          metadata: {"maputnik:role": "overlay"},
+        },
+        {
+          id: expect.stringMatching(/^agent-dataset:.*:highlights$/),
+          source: expect.stringMatching(/^agent-dataset:.*:highlights-source$/),
+          metadata: {"maputnik:role": "overlay"},
+        },
+      ],
     });
-    expect(visibility).not.toBe("none");
   });
 });

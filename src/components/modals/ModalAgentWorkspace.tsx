@@ -1,21 +1,21 @@
 import React from "react";
 import {MdChat, MdClose, MdFileDownload, MdStorage} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
-import type {Map} from "maplibre-gl";
+import type {Map, StyleSpecification} from "maplibre-gl";
 
 import {AgentConsole} from "../AgentConsole";
 import {DatasetPanel} from "../DatasetPanel";
 import {AgentExportPanel} from "../AgentExportPanel";
-import type {AgentRuntime} from "../../libs/agent-runtime";
 import type {DatasetStore} from "../../libs/dataset-store";
 
 type ModalAgentWorkspaceInternalProps = {
   isOpen: boolean;
   onOpenToggle(): void;
-  runtime: AgentRuntime;
+  getMap(): Map | null;
+  getStyle(): StyleSpecification;
+  setStyle(style: StyleSpecification): void;
   datasetStore: DatasetStore;
   onDatasetsChange(): void;
-  map: Map | null;
   renderer: string;
 } & WithTranslation;
 
@@ -131,9 +131,10 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
 
             <div className={`agent-workspace-view ${this.state.view === "chat" ? "agent-workspace-view--active" : ""}`}>
               <AgentConsole
-                runtime={this.props.runtime}
+                getMap={this.props.getMap}
+                getStyle={this.props.getStyle}
+                setStyle={this.props.setStyle}
                 datasetStore={this.props.datasetStore}
-                onDatasetsChange={this.props.onDatasetsChange}
                 onOpenData={() => this.setState({view: "data"})}
               />
             </div>
@@ -146,9 +147,9 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
             </div>
             <div className={`agent-workspace-view ${this.state.view === "export" ? "agent-workspace-view--active" : ""}`}>
               <AgentExportPanel
-                map={this.props.map}
+                map={this.props.getMap()}
                 renderer={this.props.renderer}
-                styleName={this.props.runtime.getStyle().name ?? "maputnik"}
+                styleName={this.props.getStyle().name ?? "maputnik"}
               />
             </div>
           </div>

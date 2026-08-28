@@ -74,7 +74,7 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
 
       <section className="maputnik-modal-section">
         <h1>{t("CSV datasets")}</h1>
-        <p>{t("Upload a CSV file. The runtime exposes its columns and rows without assuming which columns are coordinates.")}</p>
+        <p>{t("Upload a CSV file. The agent can inspect its columns and rows without assuming which columns are coordinates.")}</p>
         <input
           ref={this.fileInputRef}
           type="file"

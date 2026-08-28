@@ -21,8 +21,6 @@ export type PointGeometryMapping = {
   coordinates: [string, string];
 };
 
-export type GeometryMapping = PointGeometryMapping;
-
 export type DatasetWorkspace = {
   list(): DatasetSummary[];
   get(id: string): Dataset | undefined;
@@ -30,8 +28,45 @@ export type DatasetWorkspace = {
   remove(id: string): Promise<void>;
   columns(id: string): string[];
   query(id: string, predicate: (row: DatasetRow) => boolean): DatasetRow[];
-  toGeoJSON(id: string, geometry: GeometryMapping): FeatureCollection;
+  toGeoJSON(id: string, geometry: PointGeometryMapping): FeatureCollection<Point>;
 };
+
+export const DATASET_TYPE_REFERENCE = `type DatasetValue = string | number | null;
+
+type DatasetRow = Record<string, DatasetValue>;
+
+type Dataset = {
+  id: string;
+  name: string;
+  columns: string[];
+  rows: DatasetRow[];
+  createdAt: number;
+};
+
+type DatasetSummary = Dataset & {
+  rowCount: number;
+};
+
+type PointGeometryMapping = {
+  type: "Point";
+  coordinates: [string, string];
+};
+
+type DatasetWorkspace = {
+  list(): DatasetSummary[];
+  get(id: string): Dataset | undefined;
+  addCsv(name: string, csvText: string): Promise<Dataset>;
+  remove(id: string): Promise<void>;
+  columns(id: string): string[];
+  query(
+    id: string,
+    predicate: (row: DatasetRow) => boolean
+  ): DatasetRow[];
+  toGeoJSON(
+    id: string,
+    geometry: PointGeometryMapping
+  ): FeatureCollection<Point>;
+};`;
 
 export function normalizeColumnName(value: string) {
   return value.trim();
@@ -66,7 +101,7 @@ export function datasetToSummary(dataset: Dataset): DatasetSummary {
   };
 }
 
-export function datasetToGeoJSON(dataset: Dataset, mapping: GeometryMapping): FeatureCollection {
+export function datasetToGeoJSON(dataset: Dataset, mapping: PointGeometryMapping): FeatureCollection<Point> {
   const [longitudeColumn, latitudeColumn] = mapping.coordinates;
   const features: Feature<Point>[] = [];
 

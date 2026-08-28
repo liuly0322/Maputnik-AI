@@ -2,7 +2,7 @@ import {
   AGENT_OVERLAY_LAYER_PREFIX,
   AGENT_OVERLAY_METADATA_KEY,
   AGENT_OVERLAY_ROLE,
-} from "./agent-runtime";
+} from "./agent-overlay";
 
 export const AGENT_EXPORT_SCALE = 2;
 

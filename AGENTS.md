@@ -10,14 +10,19 @@ ideas such as DuckDB, spatial analysis engines, or a sandboxed runtime as implem
 - `src/components/modals/ModalAgentWorkspace.tsx` hosts the Chat, Data, and Export tabs.
 - `src/components/AgentConsole.tsx` manages Responses API streaming, tool rounds,
   image attachments, local settings, and conversation sessions.
-- `src/libs/agent-runtime.ts` exposes viewport, style, selection, and dataset-layer
-  operations over the live MapLibre/Maputnik state.
-- `src/libs/agent-executor.ts` executes model-generated JavaScript with `map`,
-  `style`, `runtime`, `datasets`, `workspace`, and `log` in scope.
+- `src/libs/agent-client.ts` builds stable agent instructions and appends metadata
+  for every loaded browser-local dataset.
+- `src/libs/agent-executor.ts` executes model-generated JavaScript with only `map`,
+  `style`, and `datasets` in scope. Tool output comes only from the return value.
+- `src/libs/agent-proxies.ts` keeps native MapLibre mutations and writable style
+  proxy mutations synchronized with the live Maputnik style.
 - `src/libs/dataset.ts` and `src/libs/dataset-store.ts` parse CSV files and persist
   datasets in IndexedDB. Geometry conversion currently supports points only.
-- `src/components/AgentExportPanel.tsx` exports base and overlay PNGs. Agent data
-  layers use the `agent-dataset:` prefix or `maputnik:role=overlay` metadata.
+- `src/libs/agent-overlay.ts` owns the shared dataset-overlay markers used by the
+  prompt and export code.
+- `src/components/AgentExportPanel.tsx` exports base and overlay PNGs. Export
+  recognizes historical overlays by the `agent-dataset:` prefix or
+  `maputnik:role=overlay` metadata; new dataset layers must include both markers.
 
 The JavaScript executor is deliberately an early prototype and is **not sandboxed**.
 Do not weaken the warning in the README or imply that untrusted execution is safe.
@@ -52,13 +57,10 @@ npx playwright install --with-deps chromium
 ## Change guidelines
 
 - Preserve existing Maputnik behavior unless the task explicitly changes it.
-- Keep the agent runtime tied to live application state instead of introducing a
-  parallel copy of the map or style.
-- Use native MapLibre APIs where possible and expose only application-specific
-  state through the runtime.
+- Keep the agent execution context tied to live application state instead of
+  introducing a parallel copy of the map or style.
 - Treat datasets as browser-local, modest-sized CSV data. Do not add database
   abstractions unless the task explicitly calls for them.
-- Keep agent-created data layers identifiable as overlays so export remains correct.
 - Settings and sessions currently live in local storage; datasets live in IndexedDB.
 - Do not commit API keys, uploaded user datasets, build output, coverage, or
   Playwright artifacts.

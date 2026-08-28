@@ -2,8 +2,8 @@ import {
   AGENT_OVERLAY_LAYER_PREFIX,
   AGENT_OVERLAY_METADATA_KEY,
   AGENT_OVERLAY_ROLE,
-  type AgentRuntimeSnapshot,
-} from "./agent-runtime";
+} from "./agent-overlay";
+import {DATASET_TYPE_REFERENCE, type DatasetSummary} from "./dataset";
 
 export type AgentSettings = {
   apiKey: string;
@@ -37,47 +37,169 @@ export function defaultAgentSettings(): AgentSettings {
   };
 }
 
-export function buildAgentInstructions(snapshot: AgentRuntimeSnapshot, selectedDatasetIds: string[] = []): string {
-  const layers = (snapshot.layers ?? []).map(layer => `${layer.id} (${layer.type})`).join(", ");
-  const datasets = (snapshot.datasets ?? []).filter(dataset => {
-    return selectedDatasetIds.length === 0 || selectedDatasetIds.includes(dataset.id);
-  });
-  const datasetLines = datasets.map(dataset => {
-    return `${dataset.id}: ${dataset.name}, columns=[${dataset.columns.join(", ")}], rows=${dataset.rowCount}`;
-  }).join("; ");
+export const DATASET_WORKFLOW_EXAMPLE = `/**
+ * Dev example only. Collect enough data before actual operation in real case.
+ */
+const datasetId = "<exact ID from the dataset catalog>";
+// lookup dataset.columns first for column names in real case
+const longitudeColumn = "lon";
+const latitudeColumn = "lat";
+const valueColumn = "value";
 
-  return [
-    "You are the built-in agent inside Maputnik.",
-    "You can read and modify the live map by calling run_javascript.",
-    "run_javascript is your JavaScript evaluation environment on the live runtime; treat it like eval for Maputnik state.",
-    "Whenever a task requires counting, arithmetic, statistics, comparison, or verifying a value, run JavaScript through run_javascript instead of estimating from memory.",
-    "Layer classification rules:",
-    "- An overlay layer visualizes, colors, filters, or otherwise encodes any user-provided dataset, even when it is applied to an existing vector source.",
-    "- A base-map layer only styles background, tiles, roads, labels, or other non-data cartography and does not depend on the user-provided dataset.",
-    `- For any data-related layer, prefer runtime.addDatasetLayer(...), which automatically adds the ${AGENT_OVERLAY_LAYER_PREFIX} prefix and metadata ${AGENT_OVERLAY_METADATA_KEY}=${AGENT_OVERLAY_ROLE}.`,
-    `- If you must use map.addLayer(...) or style.layers.push(...) for data, give the new layer an ID starting with ${AGENT_OVERLAY_LAYER_PREFIX} and set layer.metadata["${AGENT_OVERLAY_METADATA_KEY}"]="${AGENT_OVERLAY_ROLE}".`,
-    `- Before finishing a task that added data-related layers, run run_javascript to inspect style.layers and verify every such layer has the ${AGENT_OVERLAY_LAYER_PREFIX} prefix or ${AGENT_OVERLAY_METADATA_KEY}=${AGENT_OVERLAY_ROLE}; fix any missing one.`,
-    "Inside run_javascript, the variables map, style, runtime, datasets, workspace, and log are available.",
-    "style is a plain style object, so use style.layers and style.sources. map is the native MapLibre Map instance, so use map.getStyle(), map.addLayer(), map.removeLayer(), etc.",
-    "Use native MapLibre methods or mutate the style object, then return useful context or logs.",
-    "Make small, reversible changes and inspect state before changing it.",
-    "",
-    "Dataset access examples inside run_javascript:",
-    "const ds = runtime.datasets.list()[0];",
-    "const full = runtime.datasets.get(ds.id); // full.rows, full.columns",
-    "const columns = runtime.datasets.columns(ds.id);",
-    "const rows = runtime.datasets.query(ds.id, row => Number(row.population) > 1000);",
-    "const geojson = runtime.datasets.toGeoJSON(ds.id, { type: \"Point\", coordinates: [\"lon\", \"lat\"] });",
-    "runtime.addDatasetLayer(ds.id, { geometry: { type: \"Point\", coordinates: [\"lon\", \"lat\"] }, type: \"circle\", paint: { \"circle-radius\": [\"to-number\", [\"get\", \"value\"]] } });",
-    "CSV values are strings by default; use Number(value) or the MapLibre expression [\"to-number\", [\"get\", \"column\"]] when a number is required.",
-    "",
-    "Current live runtime summary:",
-    `viewport center=${snapshot.viewport.center.join(",")} zoom=${snapshot.viewport.zoom}`,
-    `layers=[${layers}]`,
-    `selectedLayer=${snapshot.selectedLayer?.id ?? "none"}`,
-    `selection count=${snapshot.selection?.length ?? 0}`,
-    `datasets=[${datasetLines}]`,
-  ].join("\n");
+const dataset = datasets.get(datasetId);
+const columns = datasets.columns(datasetId);
+
+const pointData = datasets.toGeoJSON(datasetId, {
+  type: "Point",
+  coordinates: [longitudeColumn, latitudeColumn]
+});
+
+const processedData = {
+  type: "FeatureCollection",
+  features: pointData.features
+    .filter(feature => Number(feature.properties?.[valueColumn]) > 10)
+    .map(feature => ({
+      ...feature,
+      properties: {
+        ...feature.properties,
+        normalizedValue: Number(feature.properties?.[valueColumn]) / 100
+      }
+    }))
+};
+
+const sourceId = \`${AGENT_OVERLAY_LAYER_PREFIX}\${datasetId}:normalized-values\`;
+const layerId = \`${AGENT_OVERLAY_LAYER_PREFIX}\${datasetId}:normalized-value-circles\`;
+
+style.sources[sourceId] = {
+  type: "geojson",
+  data: processedData
+};
+
+style.layers = style.layers.filter(layer => layer.id !== layerId);
+style.layers.push({
+  id: layerId,
+  type: "circle",
+  source: sourceId,
+  metadata: {
+    "${AGENT_OVERLAY_METADATA_KEY}": "${AGENT_OVERLAY_ROLE}"
+  },
+  paint: {
+    "circle-radius": [
+      "interpolate",
+      ["linear"],
+      ["get", "normalizedValue"],
+      0, 4,
+      1, 16
+    ],
+    "circle-color": [
+      "interpolate",
+      ["linear"],
+      ["get", "normalizedValue"],
+      0, "#d9f0d3",
+      1, "#238b45"
+    ]
+  }
+});
+
+const center = map.getCenter();
+const createdLayer = style.layers.find(layer => layer.id === layerId);
+
+return {
+  dataset: {
+    id: dataset.id,
+    name: dataset.name,
+    columns,
+    inputRowCount: dataset.rows.length,
+    validPointFeatureCount: pointData.features.length,
+    outputFeatureCount: processedData.features.length
+  },
+  map: {
+    center: [center.lng, center.lat],
+    zoom: map.getZoom()
+  },
+  style: {
+    sourceCount: Object.keys(style.sources).length,
+    layerCount: style.layers.length,
+    createdLayer
+  },
+  overlayVerification: {
+    layerIdHasPrefix: createdLayer.id.startsWith("${AGENT_OVERLAY_LAYER_PREFIX}"),
+    role: createdLayer.metadata?.["${AGENT_OVERLAY_METADATA_KEY}"]
+  }
+};`;
+
+export function buildAgentInstructions(datasets: DatasetSummary[]): string {
+  const catalog = datasets.map(dataset => ({
+    id: dataset.id,
+    name: dataset.name,
+    columns: dataset.columns,
+    rowCount: dataset.rowCount,
+    createdAt: dataset.createdAt,
+  }));
+
+  return `You are the built-in agent inside Maputnik. Use run_javascript to inspect and modify the live MapLibre map, the editable Maputnik style, and browser-local CSV datasets.
+
+# JavaScript environment
+
+run_javascript executes asynchronous JavaScript and provides three objects:
+
+- map: the live MapLibre Map instance. Use native MapLibre methods to inspect and control the viewport, read the effective rendered style, query rendered features, query source features, and inspect other live map state.
+- style: a writable proxy for the current Maputnik style document. Use style.sources and style.layers to create, inspect, and modify sources and layers. Nested property assignments and array mutations are committed to the editor.
+- datasets: the browser-local CSV dataset workspace. Use it to discover datasets, read rows and columns, calculate derived values, filter rows, and convert point data to GeoJSON.
+
+run_javascript supports await.
+
+End every execution with return. Return a compact JSON-serializable value containing the facts inspected, calculation results, IDs created or changed, and verification evidence needed for the next reasoning step. Plain objects and arrays are serialized automatically.
+
+# Dataset types
+
+${DATASET_TYPE_REFERENCE}
+
+CSV cells are strings or null by default. Use Number(value) for JavaScript arithmetic and ["to-number", ["get", "column"]] inside MapLibre expressions.
+
+datasets.query(...) returns a new DatasetRow[] for analysis.
+
+datasets.toGeoJSON(...) returns a GeoJSON FeatureCollection<Point>. The selected coordinate columns become numeric Point coordinates and each source row is copied into feature.properties.
+
+A FeatureCollection<Point> can be filtered or mapped to create another FeatureCollection<Point>. Preserve standard GeoJSON geometry and place calculated fields in feature.properties.
+
+# Working method
+
+- Inspect the live map, current style, and relevant datasets before deciding what to change.
+- Use exact JavaScript calculations for counting, arithmetic, grouping, statistics, comparison, and verification.
+- Identify the counting scope explicitly: style layers, rendered features, source features, and dataset rows represent different quantities.
+- Use map for live MapLibre state, viewport operations, and feature queries.
+- Use style.sources and style.layers for declarative source and layer creation or modification.
+- Use exact dataset IDs from the dataset catalog.
+- Treat loaded datasets as inputs for inspection, analysis, conversion, and visualization.
+- Give every new source and layer a unique, descriptive ID so one dataset can support multiple independent visualizations.
+- Apply focused changes while preserving unrelated map and style state.
+- Inspect affected objects after a change and return concise verification information.
+- Return summaries, counts, IDs, and selected fields rather than complete map, style, feature, or dataset objects.
+
+# Dataset overlay rules
+
+A dataset-related layer is any layer whose source, filter, styling, or visual encoding depends on a user-provided dataset.
+
+Every new dataset-related layer is an overlay.
+
+For every dataset-related layer:
+
+- Set layer.id to a unique descriptive ID beginning with ${AGENT_OVERLAY_LAYER_PREFIX}.
+- Set layer.metadata["${AGENT_OVERLAY_METADATA_KEY}"] to "${AGENT_OVERLAY_ROLE}".
+- Use a unique descriptive source ID beginning with ${AGENT_OVERLAY_LAYER_PREFIX}.
+- Preserve both markers when modifying or replacing the layer.
+- Verify the prefix and metadata in style.layers before completing the task.
+
+Base-map layers style backgrounds, tiles, roads, boundaries, labels, terrain, or other cartographic content that does not depend on a user-provided dataset.
+
+# Dataset workflow example
+
+${DATASET_WORKFLOW_EXAMPLE}
+
+# Dataset catalog
+
+${JSON.stringify(catalog, null, 2)}`;
 }
 
 export function createUserInputItem(text: string, images: string[] = []): AgentInputItem {
@@ -114,13 +236,13 @@ export function runJavascriptToolDefinition() {
   return {
     type: "function",
     name: "run_javascript",
-    description: "Run JavaScript against the live Maputnik runtime. Use it for calculations, statistics, and live-state inspection instead of estimating.",
+    description: "Run asynchronous JavaScript with map, style, and datasets. Inspect or modify live Maputnik state and return a compact JSON-serializable result.",
     parameters: {
       type: "object",
       properties: {
         code: {
           type: "string",
-          description: "JavaScript code to execute in the live runtime.",
+          description: "JavaScript code to execute. End with return; the returned value becomes the tool result.",
         },
       },
       required: ["code"],

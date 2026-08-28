@@ -176,7 +176,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
       <section className="maputnik-modal-section">
         <h1>{t("PNG Export")}</h1>
         <p>
-          {t("Exports the current live map as separate base and overlay PNGs. Overlay layers are identified by the agent-dataset: prefix.")}
+          {t("Exports the current live map as separate base and overlay PNGs. Historical overlays are identified by the agent-dataset: prefix or maputnik:role metadata.")}
         </p>
         <p>
           {liveMap ? t("Live map is attached.") : t("Waiting for the map to load...")}
