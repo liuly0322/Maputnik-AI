@@ -10,6 +10,57 @@ export type AgentExecutionContext = {
   workspace: unknown;
 };
 
+export const MAX_TOOL_OUTPUT_UTF8_BYTES = 100_000;
+
+const utf8Encoder = new TextEncoder();
+const utf8Decoder = new TextDecoder();
+
+function utf8Prefix(bytes: Uint8Array, maxBytes: number) {
+  let end = Math.min(bytes.length, maxBytes);
+  while (end > 0 && end < bytes.length && (bytes[end] & 0xc0) === 0x80) {
+    end -= 1;
+  }
+  return utf8Decoder.decode(bytes.subarray(0, end));
+}
+
+function utf8Suffix(bytes: Uint8Array, maxBytes: number) {
+  let start = Math.max(0, bytes.length - maxBytes);
+  while (start < bytes.length && (bytes[start] & 0xc0) === 0x80) {
+    start += 1;
+  }
+  return utf8Decoder.decode(bytes.subarray(start));
+}
+
+export function truncateToolOutput(
+  output: string,
+  maxBytes = MAX_TOOL_OUTPUT_UTF8_BYTES
+) {
+  const byteLimit = Math.max(0, Math.floor(maxBytes));
+  const encoded = utf8Encoder.encode(output);
+  if (encoded.length <= byteLimit) {
+    return output;
+  }
+
+  const notice = [
+    "",
+    "",
+    `[Tool output truncated: original UTF-8 size ${encoded.length} bytes; showing the beginning and end within the ${byteLimit}-byte limit.]`,
+    "",
+    "",
+  ].join("\n");
+  const encodedNotice = utf8Encoder.encode(notice);
+  if (encodedNotice.length >= byteLimit) {
+    return utf8Prefix(encodedNotice, byteLimit);
+  }
+
+  const contentBudget = byteLimit - encodedNotice.length;
+  const prefixBudget = Math.floor(contentBudget / 2);
+  const suffixBudget = contentBudget - prefixBudget;
+  return utf8Prefix(encoded, prefixBudget)
+    + notice
+    + utf8Suffix(encoded, suffixBudget);
+}
+
 export function stringifyResult(value: unknown) {
   if (value === undefined) {
     return "undefined";

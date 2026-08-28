@@ -15,6 +15,7 @@ import {
 import {
   executeAgentJavaScript,
   stringifyResult,
+  truncateToolOutput,
   type AgentExecutionContext,
 } from "../libs/agent-executor";
 import {AgentSessionStore, type AgentSession, type ChatMessage} from "../libs/agent-session-store";
@@ -491,6 +492,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         catch (error) {
           output = `Error: ${error instanceof Error ? error.stack || error.message : String(error)}`;
         }
+        output = truncateToolOutput(output);
         inputItems = [...inputItems, createFunctionCallOutputItem(functionCall.call_id, output)];
         messages = [...messages, {id: generateId(), role: "tool", content: output || "(no output)"}];
         updateUi();
