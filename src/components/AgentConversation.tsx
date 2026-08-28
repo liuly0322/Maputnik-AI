@@ -1,5 +1,6 @@
 import React from "react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {MdChevronRight, MdCode} from "react-icons/md";
 import {useTranslation} from "react-i18next";
 
@@ -119,7 +120,7 @@ export function AgentConversation({session, busy, messagesEndRef}: AgentConversa
               >
                 <div className="agent-console-message-role">{t("Agent")}</div>
                 <div className="agent-console-message-bubble agent-console-message-markdown">
-                  <Markdown>{message.content}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                   <MessageImages message={message} />
                 </div>
               </div>
