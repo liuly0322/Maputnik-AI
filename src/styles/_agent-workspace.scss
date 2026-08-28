@@ -74,6 +74,7 @@ body.maputnik-modal-open {
 
 .agent-workspace-view {
   display: none;
+  min-width: 0;
 
   &--active {
     display: flex;

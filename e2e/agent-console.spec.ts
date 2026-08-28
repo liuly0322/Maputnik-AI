@@ -48,6 +48,22 @@ describe("agent console", () => {
     expect(requestBodies[0].input[0].content.some((part: any) => part.type === "input_image")).toBe(true);
   });
 
+  test("wraps long unbroken messages without widening the console", async () => {
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", `https://example.com/${"a".repeat(1000)}`);
+    await when.click("agent-console:send");
+
+    await then(get.elementByTestId("agent-console:messages")).shouldContainText("https://example.com/");
+    await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
+    await then(get.elementByTestId("agent-console:chat-card")).shouldNotOverflowHorizontally();
+    await then(get.elementByTestId("agent-console:messages")).shouldNotOverflowHorizontally();
+    await then(get.element(".maputnik-agent-workspace-modal .maputnik-modal-scroller")).shouldNotOverflowHorizontally();
+  });
+
   test("includes the prior assistant reply in the next request", async () => {
     const page = currentPage();
     const requestBodies: any[] = [];

@@ -118,6 +118,16 @@ export class Assertable<T> {
   shouldHaveText = (text: string) => expect(this.locator().first()).toHaveText(text);
   shouldHaveLength = (length: number) => expect(this.locator()).toHaveCount(length);
   shouldHaveCss = (property: string, value: string) => expect(this.locator().first()).toHaveCSS(property, value);
+  shouldNotOverflowHorizontally = async () => {
+    const locator = this.locator().first();
+    await retry(async () => {
+      const {clientWidth, scrollWidth} = await locator.evaluate(element => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    });
+  };
 
   // Value assertions (auto-retrying for Query targets).
   shouldEqual = (value: any) => this.assertValue((actual) => expect(actual).toBe(value));
