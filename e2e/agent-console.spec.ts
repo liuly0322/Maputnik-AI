@@ -48,6 +48,75 @@ describe("agent console", () => {
     expect(requestBodies[0].input[0].content.some((part: any) => part.type === "input_image")).toBe(true);
   });
 
+  test("creates a session when sending with no current conversation", async () => {
+    const page = currentPage();
+    await page.route("http://localhost:8888/responses", route => route.fulfill({
+      contentType: "text/event-stream",
+      body: "",
+    }));
+
+    await when.click("nav:agent-workspace");
+    await then(get.elementByTestId("agent-console:sessions")).shouldContainText("No sessions yet.");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Create this conversation automatically");
+    await when.click("agent-console:send");
+
+    await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
+    await then(get.elementByTestId("agent-console:sessions")).shouldContainText("Create this conversation automatically");
+    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Create this conversation automatically");
+    await then(get.element(".agent-console-session--active")).shouldExist();
+  });
+
+  test("stops a streaming reply and keeps the partial text", async () => {
+    const page = currentPage();
+    await page.evaluate(() => {
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url !== "http://localhost:8888/responses") return originalFetch(input, init);
+
+        const signal = init?.signal;
+        const encoder = new TextEncoder();
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode([
+              "event: response.output_text.delta",
+              "data: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_partial\",\"delta\":\"Partial reply from the agent\"}",
+              "",
+              "",
+            ].join("\n")));
+            signal?.addEventListener("abort", () => controller.error(signal.reason), {once: true});
+          },
+        });
+        return Promise.resolve(new Response(body, {
+          headers: {"Content-Type": "text/event-stream"},
+        }));
+      };
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Start a long reply");
+    await when.click("agent-console:send");
+
+    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Partial reply from the agent");
+    await then(get.elementByTestId("agent-console:stop")).shouldBeVisible();
+    await then(get.element("[data-wd-key='agent-console:stop'] svg")).shouldExist();
+    await when.click("agent-console:stop");
+
+    await then(get.elementByTestId("agent-console:stop")).shouldNotBeVisible();
+    await then(get.elementByTestId("agent-console:send")).shouldBeVisible();
+    await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
+    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Partial reply from the agent");
+    await then(get.elementByTestId("agent-console:error")).shouldNotExist();
+  });
+
   test("renders turns with markdown and collapsed tool execution details", async () => {
     const page = currentPage();
     const agentCode = "return 6 * 7;";

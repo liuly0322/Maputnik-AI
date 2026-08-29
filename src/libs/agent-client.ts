@@ -322,7 +322,8 @@ function parseSseBlock(block: string): AgentStreamEvent | null {
 export async function* streamResponsesApi(
   settings: AgentSettings,
   instructions: string,
-  input: AgentInputItem[]
+  input: AgentInputItem[],
+  signal?: AbortSignal
 ): AsyncGenerator<AgentStreamEvent> {
   const endpoint = normalizeEndpoint(settings.endpoint);
   const response = await fetch(endpoint, {
@@ -339,6 +340,7 @@ export async function* streamResponsesApi(
       tool_choice: "auto",
       stream: true,
     }),
+    signal,
   });
 
   if (!response.ok) {

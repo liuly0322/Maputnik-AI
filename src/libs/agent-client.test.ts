@@ -1,10 +1,11 @@
-import {describe, expect, it} from "vitest";
+import {describe, expect, it, vi} from "vitest";
 
 import {
   buildAgentInstructions,
   createUserInputItem,
   DATASET_WORKFLOW_EXAMPLE,
   runJavascriptToolDefinition,
+  streamResponsesApi,
 } from "./agent-client";
 import {createAgentExecutionContext, executeAgentJavaScript} from "./agent-executor";
 import {createDatasetWorkspace, DATASET_TYPE_REFERENCE, type Dataset} from "./dataset";
@@ -167,5 +168,50 @@ describe("runJavascriptToolDefinition", () => {
     const tool = runJavascriptToolDefinition();
     expect(tool.description).toContain("map, style, and datasets");
     expect(tool.parameters.properties.code.description).toContain("End with return");
+  });
+});
+
+describe("streamResponsesApi", () => {
+  it("passes an abort signal through to the streaming request", async () => {
+    const abortController = new AbortController();
+    const encoder = new TextEncoder();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+      const signal = init?.signal;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode([
+            "event: response.output_text.delta",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}",
+            "",
+            "",
+          ].join("\n")));
+          signal?.addEventListener("abort", () => controller.error(signal.reason), {once: true});
+        },
+      });
+      return Promise.resolve(new Response(body, {
+        headers: {"Content-Type": "text/event-stream"},
+      }));
+    });
+
+    try {
+      const stream = streamResponsesApi(
+        {apiKey: "key", endpoint: "https://example.test/responses", model: "model"},
+        "instructions",
+        [],
+        abortController.signal
+      );
+
+      await expect(stream.next()).resolves.toMatchObject({
+        value: {type: "response.output_text.delta", data: {delta: "partial"}},
+      });
+      const nextEvent = stream.next();
+      abortController.abort();
+
+      await expect(nextEvent).rejects.toMatchObject({name: "AbortError"});
+      expect(fetchMock.mock.calls[0][1]?.signal).toBe(abortController.signal);
+    }
+    finally {
+      fetchMock.mockRestore();
+    }
   });
 });

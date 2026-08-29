@@ -1,5 +1,5 @@
 import React from "react";
-import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdSend} from "react-icons/md";
+import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdSend, MdStop} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 import type {Map as MapLibreMap, StyleSpecification} from "maplibre-gl";
 
@@ -127,6 +127,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   private messagesEndRef = React.createRef<HTMLDivElement>();
   private sessionStore = new AgentSessionStore();
   private settingsSaveTimer: number | null = null;
+  private responseAbortController: AbortController | null = null;
   private mounted = false;
 
   constructor(props: AgentConsoleInternalProps) {
@@ -319,6 +320,10 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     });
   };
 
+  onStop = () => {
+    this.responseAbortController?.abort();
+  };
+
   onSend = async () => {
     const text = this.state.input.trim();
     if (!text || this.state.busy || !this.state.sessionsReady) {
@@ -336,6 +341,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
 
     this.saveSettingsNow();
+
+    const abortController = new AbortController();
+    this.responseAbortController = abortController;
 
     const userMessage: ChatMessage = {
       id: generateId(),
@@ -388,16 +396,22 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         sessionId,
         nextSession.inputItems,
         nextSession.messages,
-        sessions
+        sessions,
+        abortController.signal
       );
     }
     catch (error) {
-      this.setState({
-        error: error instanceof Error ? error.message : String(error),
-      });
+      if (!abortController.signal.aborted) {
+        this.setState({
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
     finally {
-      this.setState({busy: false});
+      if (this.responseAbortController === abortController) {
+        this.responseAbortController = null;
+        this.setState({busy: false});
+      }
     }
   };
 
@@ -407,7 +421,8 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     sessionId: string,
     initialInputItems: AgentInputItem[],
     initialMessages: ChatMessage[],
-    initialSessions: AgentConsoleSession[]
+    initialSessions: AgentConsoleSession[],
+    signal: AbortSignal
   ) => {
     let sessions = initialSessions;
     let inputItems = initialInputItems;
@@ -435,43 +450,72 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
       functionCalls = [];
       const messageIdsByItemId = new Map<string, string>();
-
-      for await (const event of streamResponsesApi(settings, instructions, inputItems)) {
-        const data = event.data;
-
-        if (event.type === "response.output_text.delta" && data.delta) {
-          let messageId = messageIdsByItemId.get(data.item_id);
-          if (!messageId) {
-            messageId = generateId();
-            messageIdsByItemId.set(data.item_id, messageId);
-            messages = [...messages, {id: messageId, role: "assistant", content: ""}];
-          }
-          messages = messages.map(message => {
-            if (message.id !== messageId) return message;
-            return {...message, content: message.content + data.delta};
-          });
-          updateMessages();
-        }
-        else if (event.type === "response.output_item.done" && data.item) {
-          const item = data.item;
-          inputItems = [...inputItems, item];
-          if (item.type === "function_call") {
-            functionCalls.push(item);
-          }
-          else if (item.type === "message" && item.role === "assistant") {
-            const text = extractAssistantText(item);
-            let messageId = messageIdsByItemId.get(item.id);
-            if (!messageId && text) {
-              messageId = generateId();
-              messageIdsByItemId.set(item.id, messageId);
-              messages = [...messages, {id: messageId, role: "assistant", content: text}];
-            }
-            else if (messageId) {
-              messages = messages.map(message => message.id === messageId ? {...message, content: text} : message);
-            }
-          }
+      const completedItemIds = new Set<string>();
+      const commitPartialMessages = async () => {
+        const partialMessages = Array.from(messageIdsByItemId.entries())
+          .filter(([itemId]) => !completedItemIds.has(itemId))
+          .map(([, messageId]) => messages.find(message => message.id === messageId))
+          .filter((message): message is ChatMessage => !!message?.content)
+          .map(message => ({
+            type: "message",
+            role: "assistant",
+            content: [{type: "output_text", text: message.content}],
+          }));
+        if (partialMessages.length > 0) {
+          inputItems = [...inputItems, ...partialMessages];
           await commitInputItems();
         }
+      };
+
+      try {
+        for await (const event of streamResponsesApi(settings, instructions, inputItems, signal)) {
+          const data = event.data;
+
+          if (event.type === "response.output_text.delta" && data.delta) {
+            let messageId = messageIdsByItemId.get(data.item_id);
+            if (!messageId) {
+              messageId = generateId();
+              messageIdsByItemId.set(data.item_id, messageId);
+              messages = [...messages, {id: messageId, role: "assistant", content: ""}];
+            }
+            messages = messages.map(message => {
+              if (message.id !== messageId) return message;
+              return {...message, content: message.content + data.delta};
+            });
+            updateMessages();
+          }
+          else if (event.type === "response.output_item.done" && data.item) {
+            const item = data.item;
+            if (typeof item.id === "string") completedItemIds.add(item.id);
+            inputItems = [...inputItems, item];
+            if (item.type === "function_call") {
+              functionCalls.push(item);
+            }
+            else if (item.type === "message" && item.role === "assistant") {
+              const text = extractAssistantText(item);
+              let messageId = messageIdsByItemId.get(item.id);
+              if (!messageId && text) {
+                messageId = generateId();
+                messageIdsByItemId.set(item.id, messageId);
+                messages = [...messages, {id: messageId, role: "assistant", content: text}];
+              }
+              else if (messageId) {
+                messages = messages.map(message => message.id === messageId ? {...message, content: text} : message);
+              }
+            }
+            await commitInputItems();
+          }
+        }
+      }
+      catch (error) {
+        if (!signal.aborted) throw error;
+        await commitPartialMessages();
+        return;
+      }
+
+      if (signal.aborted) {
+        await commitPartialMessages();
+        return;
       }
 
       if (functionCalls.length === 0) {
@@ -479,6 +523,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       }
 
       for (const functionCall of functionCalls) {
+        if (signal.aborted) return;
         let code = "";
         try {
           code = JSON.parse(functionCall.arguments ?? "{}").code ?? "";
@@ -493,6 +538,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         catch (error) {
           output = `Error: ${error instanceof Error ? error.stack || error.message : String(error)}`;
         }
+        if (signal.aborted) return;
         output = truncateToolOutput(output);
         inputItems = [...inputItems, createFunctionCallOutputItem(functionCall.call_id, output)];
         messages = [...messages, {
@@ -708,10 +754,15 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
                 <MdImage />
                 {t("Add image")}
               </button>
-              <button className="maputnik-button" onClick={() => void this.onSend()} disabled={this.state.busy || !this.state.sessionsReady} data-wd-key="agent-console:send">
-                <MdSend />
-                {t("Send")}
-              </button>
+              {this.state.busy
+                ? <button className="maputnik-button agent-console-stop" onClick={this.onStop} data-wd-key="agent-console:stop" aria-label={t("Stop generating")}>
+                  <MdStop />
+                  {t("Stop generating")}
+                </button>
+                : <button className="maputnik-button" onClick={() => void this.onSend()} disabled={!this.state.sessionsReady} data-wd-key="agent-console:send">
+                  <MdSend />
+                  {t("Send")}
+                </button>}
             </div>
           </div>
         </section>

@@ -661,6 +661,13 @@
   margin-top: vars.$margin-2;
 }
 
+.agent-console-stop {
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
 @media screen and (prefers-reduced-motion: reduce) {
   .agent-console-sidebar,
   .agent-console-tool-chevron {
