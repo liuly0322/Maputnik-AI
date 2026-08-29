@@ -3,9 +3,10 @@ import {MaputnikDriver} from "./maputnik-driver";
 import {currentPage} from "./utils/fixtures";
 
 const csv = "name,lon,lat,value\nA,1,2,10\nB,3,4,20";
-const agentCode = [
-  "const id = datasets.list()[0].id;",
-  "const data = datasets.toGeoJSON(id, {type: \"Point\", coordinates: [\"lon\", \"lat\"]});",
+const agentCode = (id: string) => [
+  `const id = ${JSON.stringify(id)};`,
+  "const dataset = datasets.get(id);",
+  "const data = datasets.csv.toGeoJSON(dataset, {type: \"Point\", coordinates: [\"lon\", \"lat\"]});",
   "const visualizations = [",
   "  {name: \"value-circles\", paint: {\"circle-radius\": [\"to-number\", [\"get\", \"value\"]], \"circle-color\": \"#238b45\"}},",
   "  {name: \"highlight-circles\", paint: {\"circle-radius\": 4, \"circle-color\": \"#d95f0e\"}}",
@@ -17,7 +18,7 @@ const agentCode = [
   "  style.layers.push({id: layerId, type: \"circle\", source: sourceId, metadata: {\"maputnik:role\": \"overlay\"}, paint: visualization.paint});",
   "  return {sourceId, layerId};",
   "});",
-  "return {columns: datasets.columns(id), created};",
+  "return {columns: dataset.data.columns, created};",
 ].join("\n");
 
 async function mockResponsesApi(page: any) {
@@ -36,11 +37,13 @@ async function mockResponsesApi(page: any) {
         ].join("\n"),
       });
     }
+    const catalog = JSON.parse(body.instructions.split("# Dataset catalog\n\n")[1]);
+    const code = agentCode(catalog[0].id);
     return route.fulfill({
       contentType: "text/event-stream",
       body: [
         "event: response.output_item.done",
-        `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code: agentCode}))}}}`,
+        `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
         "",
         "",
       ].join("\n"),
@@ -63,6 +66,7 @@ describe("datasets", () => {
 
     await when.chooseCsvFromPicker("points.csv", csv);
     await then(get.elementByTestId("datasets:list")).shouldContainText("points.csv");
+    await then(get.elementByTestId("datasets:list")).shouldContainText("2 rows");
     await then(get.elementByTestId("datasets:list")).shouldContainText("name, lon, lat, value");
 
     await when.modal.close("modal:agent-workspace");
@@ -73,6 +77,26 @@ describe("datasets", () => {
     await then(get.elementByTestId("datasets:list")).shouldContainText("points.csv");
   });
 
+  test("deletes an uploaded CSV dataset", async () => {
+    await when.click("nav:agent-workspace");
+    await when.click("agent-workspace:tab-data");
+    await when.chooseCsvFromPicker("remove-me.csv", csv);
+
+    await when.removeFirstDataset();
+
+    await then(get.element(".maputnik-dataset-item")).shouldNotExist();
+  });
+
+  test("shows a parsing error without adding a malformed CSV dataset", async () => {
+    await when.click("nav:agent-workspace");
+    await when.click("agent-workspace:tab-data");
+
+    await when.chooseCsvFromPicker("broken.csv", 'name,value\n"unterminated,1');
+
+    await then(get.element(".maputnik-modal-error")).shouldContainText("Could not parse CSV");
+    await then(get.element(".maputnik-dataset-item")).shouldNotExist();
+  });
+
   test("shows static dataset context and creates two independent overlays from one dataset", async () => {
     const page = currentPage();
     await when.click("nav:agent-workspace");
@@ -81,6 +105,7 @@ describe("datasets", () => {
     await when.click("agent-workspace:back-to-chat");
 
     await then(get.elementByTestId("agent-console:dataset-chips")).shouldContainText("points.csv");
+    await then(get.elementByTestId("agent-console:dataset-chips")).shouldContainText("csv · 2 rows");
     await then(get.element("div.agent-console-dataset-chip")).shouldExist();
     await then(get.element("button.agent-console-dataset-chip")).shouldNotExist();
     await when.click("agent-console:toggle-settings");

@@ -3,9 +3,10 @@ import {MaputnikDriver} from "./maputnik-driver";
 import {currentPage} from "./utils/fixtures";
 
 const csv = "name,lon,lat,value\nA,1,2,10\nB,3,4,20";
-const agentCode = [
-  "const id = datasets.list()[0].id;",
-  "const data = datasets.toGeoJSON(id, {type: \"Point\", coordinates: [\"lon\", \"lat\"]});",
+const agentCode = (id: string) => [
+  `const id = ${JSON.stringify(id)};`,
+  "const dataset = datasets.get(id);",
+  "const data = datasets.csv.toGeoJSON(dataset, {type: \"Point\", coordinates: [\"lon\", \"lat\"]});",
   "const created = [\"values\", \"highlights\"].map((name, index) => {",
   "  const sourceId = `agent-dataset:${id}:${name}-source`;",
   "  const layerId = `agent-dataset:${id}:${name}`;",
@@ -32,11 +33,13 @@ async function mockResponsesApi(page: any) {
         ].join("\n"),
       });
     }
+    const catalog = JSON.parse(body.instructions.split("# Dataset catalog\n\n")[1]);
+    const code = agentCode(catalog[0].id);
     return route.fulfill({
       contentType: "text/event-stream",
       body: [
         "event: response.output_item.done",
-        `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code: agentCode}))}}}`,
+        `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
         "",
         "",
       ].join("\n"),

@@ -21,6 +21,7 @@ import {
 } from "../libs/agent-executor";
 import {createChatMessages, type ChatMessage} from "../libs/agent-conversation";
 import {AgentSessionStore, type AgentSession} from "../libs/agent-session-store";
+import {createDatasetWorkspace, type Dataset} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 import {AgentConversation} from "./AgentConversation";
 
@@ -53,6 +54,16 @@ type AgentConsoleInternalState = {
 
 const SETTINGS_KEY = "maputnik:agent_settings";
 const MAX_TOOL_ROUNDS = 20;
+
+function getDatasetCsvSummary(dataset: Dataset) {
+  switch (dataset.type) {
+    case "csv":
+      return {
+        rowCount: dataset.data.rows.length,
+        columns: dataset.data.columns,
+      };
+  }
+}
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -187,7 +198,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       getMap: this.props.getMap,
       getStyle: this.props.getStyle,
       setStyle: this.props.setStyle,
-      datasets: this.props.datasetStore,
+      datasets: createDatasetWorkspace(this.props.datasetStore),
     });
   };
 
@@ -373,7 +384,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     try {
       await this.runStreamingLoop(
         settings,
-        buildAgentInstructions(this.props.datasetStore.list()),
+        buildAgentInstructions(this.props.datasetStore.getAll()),
         sessionId,
         nextSession.inputItems,
         nextSession.messages,
@@ -630,15 +641,18 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
                   </button>
                 </div>
                 <div className="agent-console-dataset-chips" data-wd-key="agent-console:dataset-chips">
-                  {this.props.datasetStore.list().length === 0 && <p>{t("No datasets loaded.")}</p>}
-                  {this.props.datasetStore.list().map(dataset => {
+                  {this.props.datasetStore.getAll().length === 0 && <p>{t("No datasets loaded.")}</p>}
+                  {this.props.datasetStore.getAll().map(dataset => {
+                    const summary = getDatasetCsvSummary(dataset);
                     return <div
                       key={dataset.id}
                       className="agent-console-dataset-chip"
                       data-wd-key={`agent-console:dataset-chip:${dataset.id}`}
                     >
                       <span className="agent-console-dataset-chip-name">{dataset.name}</span>
-                      <span className="agent-console-dataset-chip-meta">{dataset.rowCount} · {dataset.columns.slice(0, 4).join(", ")}</span>
+                      <span className="agent-console-dataset-chip-meta">
+                        {dataset.type} · {summary.rowCount} {t("rows")} · {summary.columns.slice(0, 4).join(", ")}
+                      </span>
                     </div>;
                   })}
                 </div>

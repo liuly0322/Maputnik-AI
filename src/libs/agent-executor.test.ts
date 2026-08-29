@@ -9,13 +9,10 @@ import {
 
 const utf8Encoder = new TextEncoder();
 const datasets: any = {
-  list: () => [],
   get: () => undefined,
-  addCsv: async () => undefined,
-  remove: async () => undefined,
-  columns: () => [],
-  query: () => [],
-  toGeoJSON: () => ({type: "FeatureCollection", features: []}),
+  csv: {
+    toGeoJSON: () => ({type: "FeatureCollection", features: []}),
+  },
 };
 
 afterEach(() => {
@@ -52,6 +49,15 @@ describe("executeAgentJavaScript", () => {
     expect(consoleLog).toHaveBeenCalledWith("diagnostic");
     expect(result).toBe('{\n  "ok": true\n}');
     expect(result).not.toContain("diagnostic");
+  });
+
+  it("injects only the DatasetWorkspace facade", async () => {
+    await expect(executeAgentJavaScript(
+      "return {workspace: Object.keys(datasets), csv: Object.keys(datasets.csv)};",
+      context
+    )).resolves.toBe(
+      '{\n  "workspace": [\n    "get",\n    "csv"\n  ],\n  "csv": [\n    "toGeoJSON"\n  ]\n}'
+    );
   });
 });
 

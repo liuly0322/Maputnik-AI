@@ -3,6 +3,7 @@ import {MdArrowBack, MdDelete, MdFileUpload} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 
 import {InputButton} from "./InputButton";
+import type {Dataset} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 
 type DatasetPanelInternalProps = {
@@ -15,6 +16,16 @@ type DatasetPanelInternalState = {
   error?: string;
   busy: boolean;
 };
+
+function getDatasetDisplay(dataset: Dataset) {
+  switch (dataset.type) {
+    case "csv":
+      return {
+        rowCount: dataset.data.rows.length,
+        columns: dataset.data.columns,
+      };
+  }
+}
 
 class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, DatasetPanelInternalState> {
   private fileInputRef = React.createRef<HTMLInputElement>();
@@ -62,7 +73,7 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
 
   render() {
     const {t} = this.props;
-    const datasets = this.props.store.list();
+    const datasets = this.props.store.getAll();
 
     return <div className="dataset-panel" data-wd-key="agent-workspace:data">
       <div className="dataset-panel-toolbar">
@@ -96,11 +107,12 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
         {datasets.length === 0 && <p>{t("No datasets yet.")}</p>}
         <div className="maputnik-dataset-list" data-wd-key="datasets:list">
           {datasets.map(dataset => {
+            const display = getDatasetDisplay(dataset);
             return <div className="maputnik-dataset-item" key={dataset.id} data-wd-key={`datasets:item:${dataset.id}`}>
               <div className="maputnik-dataset-item-main">
                 <div className="maputnik-dataset-item-name">{dataset.name}</div>
                 <div className="maputnik-dataset-item-meta">
-                  {dataset.rowCount} {t("rows")} · {dataset.columns.join(", ")}
+                  {display.rowCount} {t("rows")} · {display.columns.join(", ")}
                 </div>
               </div>
               <InputButton

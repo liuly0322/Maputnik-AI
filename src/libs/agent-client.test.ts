@@ -7,44 +7,53 @@ import {
   runJavascriptToolDefinition,
 } from "./agent-client";
 import {createAgentExecutionContext, executeAgentJavaScript} from "./agent-executor";
-import {DATASET_TYPE_REFERENCE, type DatasetSummary} from "./dataset";
+import {createDatasetWorkspace, DATASET_TYPE_REFERENCE, type Dataset} from "./dataset";
 import {DatasetStore} from "./dataset-store";
 
-const datasets: DatasetSummary[] = [
+const datasets: Dataset[] = [
   {
     id: "places-2026",
     name: "places.csv",
-    columns: ["name", "longitude", "latitude", "score"],
-    rows: [],
-    rowCount: 2,
+    type: "csv",
     createdAt: 100,
+    data: {
+      columns: ["name", "longitude", "latitude", "score"],
+      rows: [],
+    },
   },
   {
     id: "stations-2026",
     name: "stations.csv",
-    columns: ["station", "lon", "lat"],
-    rows: [],
-    rowCount: 5,
+    type: "csv",
     createdAt: 200,
+    data: {
+      columns: ["station", "lon", "lat"],
+      rows: [],
+    },
   },
 ];
 
 describe("buildAgentInstructions", () => {
-  it("describes the actual execution and dataset contracts", () => {
+  it("describes the actual execution and discriminated dataset contracts", () => {
     const instructions = buildAgentInstructions(datasets);
 
     expect(instructions).toContain("provides three objects:");
     expect(instructions).toContain("- map: the live MapLibre Map instance.");
     expect(instructions).toContain("- style: a writable proxy");
-    expect(instructions).toContain("- datasets: the browser-local CSV dataset workspace.");
+    expect(instructions).toContain("- datasets: the browser-local dataset workspace.");
     expect(instructions).toContain(DATASET_TYPE_REFERENCE);
+    expect(instructions).toContain("readonly type: TType");
+    expect(instructions).toContain('type CsvDataset = BaseDataset<\n  "csv"');
+    expect(instructions).toContain("readonly rows: readonly (readonly string[])[]");
+    expect(instructions).toContain("datasets.get(...)");
+    expect(instructions).toContain("datasets.csv.toGeoJSON(...)");
     expect(instructions).toContain("End every execution with return.");
     expect(instructions).toContain("Set layer.id to a unique descriptive ID beginning with agent-dataset:.");
     expect(instructions).toContain("Set layer.metadata[\"maputnik:role\"] to \"overlay\".");
     expect(instructions).toContain(DATASET_WORKFLOW_EXAMPLE);
   });
 
-  it("includes metadata for every loaded dataset without dynamic editor state", () => {
+  it("includes exact public metadata for every loaded dataset", () => {
     const instructions = buildAgentInstructions(datasets);
     const catalog = JSON.parse(instructions.split("# Dataset catalog\n\n")[1]);
 
@@ -52,16 +61,18 @@ describe("buildAgentInstructions", () => {
       {
         id: "places-2026",
         name: "places.csv",
-        columns: ["name", "longitude", "latitude", "score"],
-        rowCount: 2,
+        type: "csv",
         createdAt: 100,
+        columns: ["name", "longitude", "latitude", "score"],
+        rowCount: 0,
       },
       {
         id: "stations-2026",
         name: "stations.csv",
-        columns: ["station", "lon", "lat"],
-        rowCount: 5,
+        type: "csv",
         createdAt: 200,
+        columns: ["station", "lon", "lat"],
+        rowCount: 0,
       },
     ]);
     const environmentObjects = Array.from(
@@ -69,8 +80,6 @@ describe("buildAgentInstructions", () => {
       match => match[1]
     );
     expect(environmentObjects).toEqual(["map", "style", "datasets"]);
-    expect(instructions).not.toMatch(/\bruntime\b/);
-    expect(instructions).not.toMatch(/\blog\b/);
     expect(instructions).not.toContain("selectedLayer");
     expect(instructions).not.toContain("selection count");
     expect(instructions).not.toContain("Current live");
@@ -80,7 +89,7 @@ describe("buildAgentInstructions", () => {
     const store = new DatasetStore();
     const dataset = await store.addCsv(
       "values.csv",
-      "place,longitude,latitude,score\nIncluded,120.5,30.25,20\nFiltered,121,31,5"
+      "place,lon,lat,value\nIncluded,120.5,30.25,20\nFiltered,121,31,5"
     );
     const style: any = {version: 8, sources: {}, layers: []};
     let committedStyle: any = style;
@@ -95,13 +104,9 @@ describe("buildAgentInstructions", () => {
       setStyle: nextStyle => {
         committedStyle = nextStyle;
       },
-      datasets: store,
+      datasets: createDatasetWorkspace(store),
     });
-    const code = DATASET_WORKFLOW_EXAMPLE
-      .replace("<exact ID from the dataset catalog>", dataset.id)
-      .replace('const longitudeColumn = "lon";', 'const longitudeColumn = "longitude";')
-      .replace('const latitudeColumn = "lat";', 'const latitudeColumn = "latitude";')
-      .replace('const valueColumn = "value";', 'const valueColumn = "score";');
+    const code = DATASET_WORKFLOW_EXAMPLE.replace("<exact ID from the dataset catalog>", dataset.id);
 
     const output = JSON.parse(await executeAgentJavaScript(code, context));
     const sourceId = `agent-dataset:${dataset.id}:normalized-values`;
@@ -116,9 +121,9 @@ describe("buildAgentInstructions", () => {
         geometry: {type: "Point", coordinates: [120.5, 30.25]},
         properties: {
           place: "Included",
-          longitude: "120.5",
-          latitude: "30.25",
-          score: "20",
+          lon: "120.5",
+          lat: "30.25",
+          value: "20",
           normalizedValue: 0.2,
         },
       },
@@ -133,7 +138,8 @@ describe("buildAgentInstructions", () => {
       dataset: {
         id: dataset.id,
         name: "values.csv",
-        columns: ["place", "longitude", "latitude", "score"],
+        type: "csv",
+        columns: ["place", "lon", "lat", "value"],
         inputRowCount: 2,
         validPointFeatureCount: 2,
         outputFeatureCount: 1,

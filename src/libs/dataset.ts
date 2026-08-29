@@ -1,124 +1,178 @@
 import Papa from "papaparse";
-import type {Feature, FeatureCollection, Point} from "geojson";
+import type {Feature, FeatureCollection, GeoJsonProperties, Point} from "geojson";
 
-export type DatasetValue = string | number | null;
-export type DatasetRow = Record<string, DatasetValue>;
-
-export type Dataset = {
-  id: string;
-  name: string;
-  columns: string[];
-  rows: DatasetRow[];
-  createdAt: number;
+export type BaseDataset<TType extends string, TData> = {
+  readonly id: string;
+  readonly name: string;
+  readonly type: TType;
+  readonly createdAt: number;
+  readonly data: TData;
 };
 
-export type DatasetSummary = Dataset & {
-  rowCount: number;
-};
+export type CsvDataset = BaseDataset<
+  "csv",
+  {
+    readonly columns: readonly string[];
+    readonly rows: readonly (readonly string[])[];
+  }
+>;
+
+export type Dataset = CsvDataset;
 
 export type PointGeometryMapping = {
-  type: "Point";
-  coordinates: [string, string];
+  readonly type: "Point";
+  readonly coordinates: readonly [string, string];
 };
 
 export type DatasetWorkspace = {
-  list(): DatasetSummary[];
   get(id: string): Dataset | undefined;
-  addCsv(name: string, csvText: string): Promise<Dataset>;
-  remove(id: string): Promise<void>;
-  columns(id: string): string[];
-  query(id: string, predicate: (row: DatasetRow) => boolean): DatasetRow[];
-  toGeoJSON(id: string, geometry: PointGeometryMapping): FeatureCollection<Point>;
+
+  readonly csv: {
+    toGeoJSON(
+      dataset: CsvDataset,
+      geometry: PointGeometryMapping
+    ): FeatureCollection<Point>;
+  };
 };
 
-export const DATASET_TYPE_REFERENCE = `type DatasetValue = string | number | null;
-
-type DatasetRow = Record<string, DatasetValue>;
-
-type Dataset = {
-  id: string;
-  name: string;
-  columns: string[];
-  rows: DatasetRow[];
-  createdAt: number;
+export const DATASET_TYPE_REFERENCE = `type BaseDataset<TType extends string, TData> = {
+  readonly id: string;
+  readonly name: string;
+  readonly type: TType;
+  readonly createdAt: number;
+  readonly data: TData;
 };
 
-type DatasetSummary = Dataset & {
-  rowCount: number;
-};
+type CsvDataset = BaseDataset<
+  "csv",
+  {
+    readonly columns: readonly string[];
+    readonly rows: readonly (readonly string[])[];
+  }
+>;
+
+type Dataset = CsvDataset;
 
 type PointGeometryMapping = {
-  type: "Point";
-  coordinates: [string, string];
+  readonly type: "Point";
+  readonly coordinates: readonly [string, string];
 };
 
 type DatasetWorkspace = {
-  list(): DatasetSummary[];
   get(id: string): Dataset | undefined;
-  addCsv(name: string, csvText: string): Promise<Dataset>;
-  remove(id: string): Promise<void>;
-  columns(id: string): string[];
-  query(
-    id: string,
-    predicate: (row: DatasetRow) => boolean
-  ): DatasetRow[];
-  toGeoJSON(
-    id: string,
-    geometry: PointGeometryMapping
-  ): FeatureCollection<Point>;
+
+  readonly csv: {
+    toGeoJSON(
+      dataset: CsvDataset,
+      geometry: PointGeometryMapping
+    ): FeatureCollection<Point>;
+  };
 };`;
 
-export function normalizeColumnName(value: string) {
-  return value.trim();
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function parseCsv(csvText: string): Pick<Dataset, "columns" | "rows"> {
-  const result = Papa.parse<Record<string, DatasetValue>>(csvText, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: normalizeColumnName,
-    transform: value => value.trim() === "" ? null : value,
-  });
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === "string");
+}
 
-  const rows = result.data.map(row => {
-    const cleaned: DatasetRow = {};
-    for (const [key, value] of Object.entries(row)) {
-      cleaned[key] = value;
+function isStringMatrix(value: unknown): value is string[][] {
+  return Array.isArray(value) && value.every(isStringArray);
+}
+
+export function parseStoredDataset(value: unknown): Dataset | undefined {
+  if (
+    !isRecord(value)
+    || typeof value.id !== "string"
+    || typeof value.name !== "string"
+    || typeof value.createdAt !== "number"
+  ) {
+    return undefined;
+  }
+
+  switch (value.type) {
+    case "csv": {
+      if (
+        !isRecord(value.data)
+        || !isStringArray(value.data.columns)
+        || !isStringMatrix(value.data.rows)
+      ) {
+        return undefined;
+      }
+      return value as CsvDataset;
     }
-    return cleaned;
+    default:
+      return undefined;
+  }
+}
+
+export function parseCsv(csvText: string): CsvDataset["data"] {
+  const result = Papa.parse<string[]>(csvText, {
+    header: false,
+    skipEmptyLines: true,
+    dynamicTyping: false,
   });
 
-  return {
-    columns: result.meta.fields ?? [],
-    rows,
-  };
+  if (result.errors.length > 0) {
+    const details = result.errors.map(error => error.message).join("; ");
+    throw new Error(`Could not parse CSV: ${details}`);
+  }
+
+  const [header, ...rows] = result.data;
+  const columns = header?.map(column => column.trim()) ?? [];
+  if (columns.length === 0 || columns.every(column => column === "")) {
+    throw new Error("Could not parse CSV: the file does not contain a valid header");
+  }
+
+  return {columns, rows};
 }
 
-export function datasetToSummary(dataset: Dataset): DatasetSummary {
-  return {
-    ...dataset,
-    rowCount: dataset.rows.length,
-  };
-}
-
-export function datasetToGeoJSON(dataset: Dataset, mapping: PointGeometryMapping): FeatureCollection<Point> {
+export function csvDatasetToGeoJSON(
+  dataset: CsvDataset,
+  mapping: PointGeometryMapping
+): FeatureCollection<Point> {
   const [longitudeColumn, latitudeColumn] = mapping.coordinates;
-  const features: Feature<Point>[] = [];
+  const longitudeIndex = dataset.data.columns.indexOf(longitudeColumn);
+  const latitudeIndex = dataset.data.columns.indexOf(latitudeColumn);
 
-  for (const row of dataset.rows) {
-    const longitude = Number(row[longitudeColumn]);
-    const latitude = Number(row[latitudeColumn]);
+  if (longitudeIndex === -1) {
+    throw new Error(`CSV coordinate column '${longitudeColumn}' does not exist`);
+  }
+  if (latitudeIndex === -1) {
+    throw new Error(`CSV coordinate column '${latitudeColumn}' does not exist`);
+  }
+
+  const features: Feature<Point>[] = [];
+  for (const row of dataset.data.rows) {
+    const longitudeText = row[longitudeIndex];
+    const latitudeText = row[latitudeIndex];
+    if (
+      longitudeText === undefined
+      || latitudeText === undefined
+      || longitudeText.trim() === ""
+      || latitudeText.trim() === ""
+    ) {
+      continue;
+    }
+
+    const longitude = Number(longitudeText);
+    const latitude = Number(latitudeText);
     if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
       continue;
     }
 
+    const properties: GeoJsonProperties = {};
+    dataset.data.columns.forEach((column, index) => {
+      properties[column] = row[index];
+    });
     features.push({
       type: "Feature",
       geometry: {
         type: "Point",
         coordinates: [longitude, latitude],
       },
-      properties: {...row},
+      properties,
     });
   }
 
@@ -128,6 +182,13 @@ export function datasetToGeoJSON(dataset: Dataset, mapping: PointGeometryMapping
   };
 }
 
-export function queryDataset(dataset: Dataset, predicate: (row: DatasetRow) => boolean): DatasetRow[] {
-  return dataset.rows.filter(predicate);
+export function createDatasetWorkspace(
+  source: Pick<DatasetWorkspace, "get">
+): DatasetWorkspace {
+  return {
+    get: id => source.get(id),
+    csv: {
+      toGeoJSON: csvDatasetToGeoJSON,
+    },
+  };
 }

@@ -3,7 +3,7 @@ import {
   AGENT_OVERLAY_METADATA_KEY,
   AGENT_OVERLAY_ROLE,
 } from "./agent-overlay";
-import {DATASET_TYPE_REFERENCE, type DatasetSummary} from "./dataset";
+import { DATASET_TYPE_REFERENCE, type Dataset } from "./dataset";
 
 export type AgentSettings = {
   apiKey: string;
@@ -41,28 +41,24 @@ export const DATASET_WORKFLOW_EXAMPLE = `/**
  * Dev example only. Collect enough data before actual operation in real case.
  */
 const datasetId = "<exact ID from the dataset catalog>";
-// lookup dataset.columns first for column names in real case
-const longitudeColumn = "lon";
-const latitudeColumn = "lat";
-const valueColumn = "value";
-
 const dataset = datasets.get(datasetId);
-const columns = datasets.columns(datasetId);
 
-const pointData = datasets.toGeoJSON(datasetId, {
+const pointData = datasets.csv.toGeoJSON(dataset, {
   type: "Point",
-  coordinates: [longitudeColumn, latitudeColumn]
+  // use real column names from the dataset for coordinates
+  // supposing the demo dataset has 3 columns: lon, lat, value
+  coordinates: ["lon", "lat"]
 });
 
 const processedData = {
   type: "FeatureCollection",
   features: pointData.features
-    .filter(feature => Number(feature.properties?.[valueColumn]) > 10)
+    .filter(feature => Number(feature.properties?.value) > 10)
     .map(feature => ({
       ...feature,
       properties: {
         ...feature.properties,
-        normalizedValue: Number(feature.properties?.[valueColumn]) / 100
+        normalizedValue: Number(feature.properties?.value) / 100
       }
     }))
 };
@@ -108,8 +104,9 @@ return {
   dataset: {
     id: dataset.id,
     name: dataset.name,
-    columns,
-    inputRowCount: dataset.rows.length,
+    type: dataset.type,
+    columns: dataset.data.columns,
+    inputRowCount: dataset.data.rows.length,
     validPointFeatureCount: pointData.features.length,
     outputFeatureCount: processedData.features.length
   },
@@ -128,16 +125,22 @@ return {
   }
 };`;
 
-export function buildAgentInstructions(datasets: DatasetSummary[]): string {
-  const catalog = datasets.map(dataset => ({
-    id: dataset.id,
-    name: dataset.name,
-    columns: dataset.columns,
-    rowCount: dataset.rowCount,
-    createdAt: dataset.createdAt,
-  }));
+export function buildAgentInstructions(datasets: readonly Dataset[]): string {
+  const catalog = datasets.map(dataset => {
+    const baseCatalogItem: Record<string, unknown> = {
+      id: dataset.id,
+      name: dataset.name,
+      type: dataset.type,
+      createdAt: dataset.createdAt,
+    }
+    if (dataset.type === "csv") {
+      baseCatalogItem.columns = dataset.data.columns;
+      baseCatalogItem.rowCount = dataset.data.rows.length;
+    }
+    return baseCatalogItem;
+  });
 
-  return `You are the built-in agent inside Maputnik. Use run_javascript to inspect and modify the live MapLibre map, the editable Maputnik style, and browser-local CSV datasets.
+  return `You are the built-in agent inside Maputnik. Use run_javascript to inspect and modify the live MapLibre map, the editable Maputnik style, and browser-local datasets.
 
 # JavaScript environment
 
@@ -145,7 +148,7 @@ run_javascript executes asynchronous JavaScript and provides three objects:
 
 - map: the live MapLibre Map instance. Use native MapLibre methods to inspect and control the viewport, read the effective rendered style, query rendered features, query source features, and inspect other live map state.
 - style: a writable proxy for the current Maputnik style document. Use style.sources and style.layers to create, inspect, and modify sources and layers. Nested property assignments and array mutations are committed to the editor.
-- datasets: the browser-local CSV dataset workspace. Use it to discover datasets, read rows and columns, calculate derived values, filter rows, and convert point data to GeoJSON.
+- datasets: the browser-local dataset workspace. Use exact catalog IDs with datasets.get(...), inspect dataset.type at runtime, and use type-specific helpers such as datasets.csv.toGeoJSON(...).
 
 run_javascript supports await.
 
@@ -156,11 +159,9 @@ End every execution with return. Return a compact JSON-serializable summary of t
 
 ${DATASET_TYPE_REFERENCE}
 
-CSV cells are strings or null by default. Use Number(value) for JavaScript arithmetic and ["to-number", ["get", "column"]] inside MapLibre expressions.
+For CSV datasets, columns define the index of each string value in every row. Cells remain strings, including empty cells. Use ordinary JavaScript array operations for indexing, filtering, mapping, aggregation, and derived calculations. Use Number(value) for JavaScript arithmetic and ["to-number", ["get", "column"]] inside MapLibre expressions.
 
-datasets.query(...) returns a new DatasetRow[] for analysis.
-
-datasets.toGeoJSON(...) returns a GeoJSON FeatureCollection<Point>. The selected coordinate columns become numeric Point coordinates and each source row is copied into feature.properties.
+datasets.csv.toGeoJSON(...) is a stateless CSV Point adapter. The selected coordinate columns become numeric Point coordinates and each source row is reconstructed in feature.properties.
 
 A FeatureCollection<Point> can be filtered or mapped to create another FeatureCollection<Point>. Preserve standard GeoJSON geometry and place calculated fields in feature.properties.
 
@@ -168,7 +169,7 @@ A FeatureCollection<Point> can be filtered or mapped to create another FeatureCo
 
 - Inspect the state relevant to the requested operation before modifying it.
 - Use exact JavaScript calculations for counting, arithmetic, grouping, statistics, comparison, and verification.
-- Identify the counting scope explicitly: style layers, rendered features, source features, and dataset rows represent different quantities.
+- Identify the counting scope explicitly: style layers, rendered features, source features, and CSV dataset rows represent different quantities.
 - Use map for live MapLibre state, viewport operations, and feature queries.
 - Use style.sources and style.layers for declarative source and layer creation or modification.
 - Use exact dataset IDs from the dataset catalog.
@@ -315,7 +316,7 @@ function parseSseBlock(block: string): AgentStreamEvent | null {
     data = dataLines.join("\n");
   }
 
-  return {type, data};
+  return { type, data };
 }
 
 export async function* streamResponsesApi(
@@ -363,8 +364,8 @@ export async function* streamResponsesApi(
   let buffer = "";
 
   while (true) {
-    const {done, value} = await reader.read();
-    buffer += decoder.decode(value, {stream: !done});
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
 
     const blocks = buffer.split(/\r?\n\r?\n/);
     buffer = blocks.pop() ?? "";

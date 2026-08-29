@@ -1,5 +1,4 @@
-import type {FeatureCollection, Point} from "geojson";
-import { datasetToGeoJSON, datasetToSummary, parseCsv, queryDataset, type Dataset, type DatasetSummary, type DatasetWorkspace, type PointGeometryMapping } from "./dataset";
+import {parseCsv, parseStoredDataset, type CsvDataset, type Dataset} from "./dataset";
 
 const DATABASE_NAME = "maputnik-datasets";
 const DATABASE_VERSION = 1;
@@ -12,7 +11,7 @@ function generateDatasetId() {
   return `dataset-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export class DatasetStore implements DatasetWorkspace {
+export class DatasetStore {
   private readonly datasets = new Map<string, Dataset>();
   private database: IDBDatabase | null = null;
 
@@ -22,28 +21,26 @@ export class DatasetStore implements DatasetWorkspace {
     }
 
     this.database = await this.openDatabase();
-    const storedDatasets = await this.readAll();
-    for (const dataset of storedDatasets) {
-      this.datasets.set(dataset.id, dataset);
-    }
+    this.datasets.clear();
+    await this.loadAndCleanStoredDatasets(this.database);
   }
 
-  list(): DatasetSummary[] {
-    return Array.from(this.datasets.values()).map(datasetToSummary);
+  getAll(): readonly Dataset[] {
+    return Array.from(this.datasets.values());
   }
 
   get(id: string): Dataset | undefined {
     return this.datasets.get(id);
   }
 
-  async addCsv(name: string, csvText: string): Promise<Dataset> {
-    const parsed = parseCsv(csvText);
-    const dataset: Dataset = {
+  async addCsv(name: string, csvText: string): Promise<CsvDataset> {
+    const data = parseCsv(csvText);
+    const dataset: CsvDataset = {
       id: generateDatasetId(),
       name: name.trim() || "Untitled dataset",
-      columns: parsed.columns,
-      rows: parsed.rows,
+      type: "csv",
       createdAt: Date.now(),
+      data,
     };
 
     this.datasets.set(dataset.id, dataset);
@@ -58,36 +55,13 @@ export class DatasetStore implements DatasetWorkspace {
     await this.deletePersisted(id);
   }
 
-  columns(id: string): string[] {
-    const dataset = this.requireDataset(id);
-    return [...dataset.columns];
-  }
-
-  query(id: string, predicate: (row: Dataset["rows"][number]) => boolean): Dataset["rows"] {
-    const dataset = this.requireDataset(id);
-    return queryDataset(dataset, predicate);
-  }
-
-  toGeoJSON(id: string, geometry: PointGeometryMapping): FeatureCollection<Point> {
-    const dataset = this.requireDataset(id);
-    return datasetToGeoJSON(dataset, geometry);
-  }
-
-  private requireDataset(id: string): Dataset {
-    const dataset = this.datasets.get(id);
-    if (!dataset) {
-      throw new Error(`Dataset '${id}' does not exist`);
-    }
-    return dataset;
-  }
-
   private openDatabase(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
       request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(OBJECT_STORE_NAME)) {
-          db.createObjectStore(OBJECT_STORE_NAME, {keyPath: "id"});
+        const database = request.result;
+        if (!database.objectStoreNames.contains(OBJECT_STORE_NAME)) {
+          database.createObjectStore(OBJECT_STORE_NAME, {keyPath: "id"});
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -107,13 +81,36 @@ export class DatasetStore implements DatasetWorkspace {
     await this.transact(database, "readwrite", store => store.delete(id));
   }
 
-  private async readAll(): Promise<Dataset[]> {
-    const database = this.database;
-    if (!database) return [];
-    return this.transact(database, "readonly", store => store.getAll()) as Promise<Dataset[]>;
+  private loadAndCleanStoredDatasets(database: IDBDatabase): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(OBJECT_STORE_NAME, "readwrite");
+      const store = transaction.objectStore(OBJECT_STORE_NAME);
+      const request = store.openCursor();
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+
+        const dataset = parseStoredDataset(cursor.value);
+        if (dataset) {
+          this.datasets.set(dataset.id, dataset);
+        }
+        else {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
   }
 
-  private transact<T>(database: IDBDatabase, mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  private transact<T>(
+    database: IDBDatabase,
+    mode: IDBTransactionMode,
+    operation: (store: IDBObjectStore) => IDBRequest<T>
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       const transaction = database.transaction(OBJECT_STORE_NAME, mode);
       const store = transaction.objectStore(OBJECT_STORE_NAME);

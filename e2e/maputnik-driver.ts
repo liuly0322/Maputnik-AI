@@ -126,6 +126,10 @@ export class MaputnikDriver {
       await this.helper.when.wait(500);
     },
 
+    removeFirstDataset: async () => {
+      await this.helper.get.element(".maputnik-dataset-item [data-wd-key^='datasets:remove:']").first().click();
+    },
+
     chooseImageFromPicker: async (name: string, content: string) => {
       await this.helper.when.chooseFileFromPickerWithBuffer(name, "image/svg+xml", content, "agent-console:add-image");
     },
