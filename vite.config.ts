@@ -15,7 +15,7 @@ export default defineConfig(({ command, mode }) => ({
   plugins: [
     react(),
     istanbul({
-      requireEnv: false,
+      requireEnv: true,
       nycrcPath: "./.nycrc.json",
       forceBuildInstrument: true, // Instrument the source so e2e runs can collect coverage
     }),

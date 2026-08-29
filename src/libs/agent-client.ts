@@ -132,7 +132,7 @@ export function buildAgentInstructions(datasets: readonly Dataset[]): string {
       name: dataset.name,
       type: dataset.type,
       createdAt: dataset.createdAt,
-    }
+    };
     if (dataset.type === "csv") {
       baseCatalogItem.columns = dataset.data.columns;
       baseCatalogItem.rowCount = dataset.data.rows.length;
