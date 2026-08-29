@@ -14,7 +14,7 @@ import {
 
 type AgentExportPanelInternalProps = {
   map: Map | null;
-  renderer: string;
+  renderer: "mlgljs" | "ol";
   styleName: string;
 } & WithTranslation;
 
@@ -171,6 +171,11 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
     const {t} = this.props;
     const liveMap = this.props.renderer === "mlgljs" && this.props.map;
     const disabled = !liveMap || this.state.busy;
+    const mapStatus = this.props.renderer === "ol"
+      ? t("Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.")
+      : liveMap
+        ? t("Live map is attached.")
+        : t("Waiting for the map to load...");
 
     return <div className="agent-export-panel" data-wd-key="agent-workspace:export">
       <section className="maputnik-modal-section">
@@ -178,9 +183,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
         <p>
           {t("Exports the current live map as separate base and overlay PNGs. Historical overlays are identified by the agent-dataset: prefix or maputnik:role metadata.")}
         </p>
-        <p>
-          {liveMap ? t("Live map is attached.") : t("Waiting for the map to load...")}
-        </p>
+        <p data-wd-key="agent-export:map-status">{mapStatus}</p>
 
         <div className="agent-export-actions">
           <InputButton

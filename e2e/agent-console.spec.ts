@@ -10,6 +10,27 @@ describe("agent console", () => {
     await when.setStyle("geojson");
   });
 
+  test("treats the legacy mbgljs renderer as MapLibre", async () => {
+    await when.setStyle("legacy_mbgljs");
+    await when.click("nav:agent-workspace");
+
+    await then(get.elementByTestId("agent-console:map-status")).shouldContainText("Live map is attached.");
+    await when.click("agent-workspace:tab-export");
+    await then(get.elementByTestId("agent-export:map-status")).shouldContainText("Live map is attached.");
+  });
+
+  test("explains that live map access is unavailable with OpenLayers", async () => {
+    await when.click("nav:settings");
+    await when.select("modal:settings.maputnik:renderer", "ol");
+    await when.modal.close("modal:settings");
+    await when.click("nav:agent-workspace");
+
+    const message = "Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.";
+    await then(get.elementByTestId("agent-console:map-status")).shouldContainText(message);
+    await when.click("agent-workspace:tab-export");
+    await then(get.elementByTestId("agent-export:map-status")).shouldContainText(message);
+  });
+
   test("calls the Responses API and renders the assistant reply", async () => {
     const page = currentPage();
     const requestBodies: any[] = [];

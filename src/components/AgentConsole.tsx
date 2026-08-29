@@ -31,6 +31,7 @@ type AgentConsoleInternalProps = {
   setStyle(style: StyleSpecification): void;
   datasetStore: DatasetStore;
   onOpenData(): void;
+  renderer: "mlgljs" | "ol";
 } & WithTranslation;
 
 type AgentConsoleSession = AgentSession & {
@@ -575,6 +576,11 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   render() {
     const {t} = this.props;
     const liveMap = this.props.getMap();
+    const mapStatus = this.props.renderer === "ol"
+      ? t("Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.")
+      : liveMap
+        ? t("Live map is attached.")
+        : t("Waiting for the map to load...");
     const activeSession = this.state.sessions.find(session => session.id === this.state.activeSessionId);
 
     return <div
@@ -639,9 +645,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
                     />
                   </label>
                 </div>}
-                <p>
-                  {liveMap ? t("Live map is attached.") : t("Waiting for the map to load...")}
-                </p>
+                <p data-wd-key="agent-console:map-status">{mapStatus}</p>
               </section>
 
               <section className="agent-console-control-block">

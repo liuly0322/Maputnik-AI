@@ -201,6 +201,7 @@
   "You've entered an old style filter.": "您输入了一个旧风格的过滤器。",
   "Zoom": "缩放",
   "Agent": "Agent",
+  "Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.": "实时地图访问需要使用 MapLibreGL JS 渲染器。请在设置中切换样式渲染器。",
   "Collapse controls": "折叠控制栏",
   "Drag and drop a style JSON file here or click to browse": "将样式 JSON 文件拖放到此处或点击以浏览",
   "Execution details · {{count}} call": "执行详情 · {{count}} 次调用",

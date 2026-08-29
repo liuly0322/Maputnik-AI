@@ -6,6 +6,7 @@
   "Execution details · {{count}} calls": "Execution details · {{count}} calls",
   "Expand controls": "Expand controls",
   "JavaScript": "JavaScript",
+  "Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.": "Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.",
   "Output": "Output",
   "Running tool...": "Running tool...",
   "Stop generating": "Stop generating",

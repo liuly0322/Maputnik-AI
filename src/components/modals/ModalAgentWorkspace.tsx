@@ -16,7 +16,7 @@ type ModalAgentWorkspaceInternalProps = {
   setStyle(style: StyleSpecification): void;
   datasetStore: DatasetStore;
   onDatasetsChange(): void;
-  renderer: string;
+  renderer: "mlgljs" | "ol";
 } & WithTranslation;
 
 type ModalAgentWorkspaceInternalState = {
@@ -136,6 +136,7 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
                 setStyle={this.props.setStyle}
                 datasetStore={this.props.datasetStore}
                 onOpenData={() => this.setState({view: "data"})}
+                renderer={this.props.renderer}
               />
             </div>
             <div className={`agent-workspace-view ${this.state.view === "data" ? "agent-workspace-view--active" : ""}`}>

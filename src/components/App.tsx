@@ -705,9 +705,9 @@ export class App extends React.Component<any, AppState> {
     }
   }
 
-  _getRenderer () {
+  _getRenderer (): "mlgljs" | "ol" {
     const metadata: {[key:string]: string} = this.state.mapStyle.metadata || {} as any;
-    return metadata["maputnik:renderer"] || "mlgljs";
+    return metadata["maputnik:renderer"] === "ol" ? "ol" : "mlgljs";
   }
 
   onMapChange = (mapView: {

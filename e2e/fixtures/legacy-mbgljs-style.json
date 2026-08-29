@@ -1,0 +1,15 @@
+{
+  "id": "legacy-mbgljs-style",
+  "version": 8,
+  "name": "Legacy MBGLJS Style",
+  "metadata": {
+    "maputnik:renderer": "mbgljs"
+  },
+  "sources": {},
+  "layers": [
+    {
+      "id": "background",
+      "type": "background"
+    }
+  ]
+}
