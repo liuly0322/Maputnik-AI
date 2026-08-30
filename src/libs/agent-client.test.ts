@@ -172,6 +172,41 @@ describe("runJavascriptToolDefinition", () => {
 });
 
 describe("streamResponsesApi", () => {
+  it("includes prior assistant replies in the request input", async () => {
+    const input = [{
+      type: "message",
+      role: "user",
+      content: [{type: "input_text", text: "First question"}],
+    }, {
+      type: "message",
+      id: "msg_1",
+      role: "assistant",
+      content: [{type: "output_text", text: "First reply"}],
+    }, {
+      type: "message",
+      role: "user",
+      content: [{type: "input_text", text: "Follow-up question"}],
+    }];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", {
+      headers: {"Content-Type": "text/event-stream"},
+    }));
+
+    try {
+      const stream = streamResponsesApi(
+        {apiKey: "key", endpoint: "https://example.test/responses", model: "model"},
+        "instructions",
+        input
+      );
+
+      await expect(stream.next()).resolves.toMatchObject({done: true});
+      const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+      expect(request.input).toEqual(input);
+    }
+    finally {
+      fetchMock.mockRestore();
+    }
+  });
+
   it("passes an abort signal through to the streaming request", async () => {
     const abortController = new AbortController();
     const encoder = new TextEncoder();

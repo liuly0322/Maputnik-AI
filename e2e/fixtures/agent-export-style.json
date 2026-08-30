@@ -1,0 +1,43 @@
+{
+  "id": "agent-export-style",
+  "version": 8,
+  "name": "Test Style",
+  "metadata": {
+    "maputnik:renderer": "mlgljs"
+  },
+  "sources": {
+    "agent-dataset:points:values-source": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": []
+      }
+    },
+    "highlights-source": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": []
+      }
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background"
+    },
+    {
+      "id": "agent-dataset:points:values",
+      "type": "circle",
+      "source": "agent-dataset:points:values-source"
+    },
+    {
+      "id": "highlights",
+      "type": "circle",
+      "source": "highlights-source",
+      "metadata": {
+        "maputnik:role": "overlay"
+      }
+    }
+  ]
+}
