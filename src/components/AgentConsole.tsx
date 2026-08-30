@@ -1,6 +1,7 @@
 import React from "react";
 import cloneDeep from "lodash.clonedeep";
-import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdRestore, MdSend, MdStop} from "react-icons/md";
+import isEqual from "lodash.isequal";
+import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdRestore, MdSend, MdStop, MdUndo} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 import type {Map as MapLibreMap, StyleSpecification} from "maplibre-gl";
 
@@ -22,6 +23,11 @@ import {
 } from "../libs/agent-executor";
 import {createChatMessages, type ChatMessage} from "../libs/agent-conversation";
 import {AgentSessionStore, type AgentSession} from "../libs/agent-session-store";
+import {
+  createAgentTurnUndoStyle,
+  undoLatestAgentTurn,
+  type AgentTurnUndoStyle,
+} from "../libs/agent-turn-undo";
 import {createDatasetWorkspace, type Dataset} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 import {AgentConversation} from "./AgentConversation";
@@ -131,6 +137,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   private sessionStore = new AgentSessionStore();
   private settingsSaveTimer: number | null = null;
   private responseAbortController: AbortController | null = null;
+  private turnUndoStyles = new Map<string, AgentTurnUndoStyle>();
   private mounted = false;
 
   constructor(props: AgentConsoleInternalProps) {
@@ -296,7 +303,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       if (!session) return;
 
       const updatedAt = Date.now();
-      const styleCheckpoint = this.props.getStyle();
+      const styleCheckpoint = cloneDeep(this.props.getStyle());
       const checkpointSession = {
         ...session,
         updatedAt,
@@ -343,6 +350,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   };
 
   onDeleteSession = (sessionId: string) => {
+    this.turnUndoStyles.delete(sessionId);
     const sessions = this.state.sessions.filter(session => session.id !== sessionId);
     const activeSessionId = this.state.activeSessionId === sessionId
       ? sessions[0]?.id ?? null
@@ -380,6 +388,63 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
   };
 
+  onUndoTurn = async () => {
+    if (this.state.busy) return;
+    const sessionId = this.state.activeSessionId;
+    if (!sessionId) return;
+
+    const session = this.state.sessions.find(candidate => candidate.id === sessionId);
+    const styleBefore = this.turnUndoStyles.get(sessionId);
+    if (!session || !styleBefore) return;
+
+    const currentStyle = cloneDeep(this.props.getStyle());
+    if (!session.styleCheckpoint || !isEqual(currentStyle, session.styleCheckpoint)) {
+      this.setState({
+        notice: undefined,
+        error: this.props.t("The map has changed since this turn ended. Restore this session's style before undoing the turn."),
+      });
+      return;
+    }
+
+    const result = undoLatestAgentTurn(session, styleBefore);
+    if (!result) {
+      this.setState({
+        notice: undefined,
+        error: this.props.t("Could not undo agent turn"),
+      });
+      return;
+    }
+
+    const undoneSession: AgentConsoleSession = {
+      ...result.session,
+      messages: createChatMessages(result.session.inputItems),
+    };
+
+    try {
+      this.props.setStyle(cloneDeep(styleBefore));
+      if (!await this.persistSession(undoneSession)) {
+        this.props.setStyle(currentStyle);
+        return;
+      }
+      if (!this.mounted) return;
+
+      this.turnUndoStyles.delete(sessionId);
+      this.setState(state => ({
+        sessions: state.sessions.map(candidate => candidate.id === sessionId ? undoneSession : candidate),
+        input: result.input,
+        pendingImages: result.pendingImages,
+        error: undefined,
+        notice: this.props.t("The latest agent turn has been undone."),
+      }));
+    }
+    catch (error) {
+      this.setState({
+        notice: undefined,
+        error: `${this.props.t("Could not undo agent turn")}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  };
+
   onSend = async () => {
     const text = this.state.input.trim();
     if (!text || this.state.busy || !this.state.sessionsReady) {
@@ -412,6 +477,8 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     let sessions = [...this.state.sessions];
     let activeSessionId = this.state.activeSessionId;
     const activeSession = sessions.find(session => session.id === activeSessionId);
+    const turnSessionId = activeSession?.id ?? generateId();
+    this.turnUndoStyles.set(turnSessionId, createAgentTurnUndoStyle(this.props.getStyle()));
 
     if (activeSession) {
       sessions = updateSession(sessions, activeSession.id, {
@@ -422,7 +489,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
     else {
       const session: AgentConsoleSession = {
-        id: generateId(),
+        id: turnSessionId,
         title: text.slice(0, 60),
         messages: [userMessage],
         inputItems: [userItem],
@@ -777,16 +844,28 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         <section className="agent-console-chat-card" data-wd-key="agent-console:chat-card">
           <header className="agent-console-chat-header">
             <h1>{t("Conversation")}</h1>
-            {activeSession?.styleCheckpoint && <button
-              className="maputnik-button agent-console-restore-style"
-              onClick={this.onRestoreStyle}
-              disabled={this.state.busy}
-              title={t("Restore the map style saved at the end of this session's latest turn")}
-              data-wd-key="agent-console:restore-style"
-            >
-              <MdRestore />
-              {t("Restore this session's style")}
-            </button>}
+            <div className="agent-console-chat-actions">
+              <button
+                className="maputnik-button agent-console-restore-style"
+                onClick={() => void this.onUndoTurn()}
+                disabled={this.state.busy || !activeSession || !this.turnUndoStyles.has(activeSession.id)}
+                title={t("Undo the latest agent turn and restore its text and images to the composer")}
+                data-wd-key="agent-console:undo-turn"
+              >
+                <MdUndo />
+                {t("Undo this turn's style and conversation")}
+              </button>
+              {activeSession?.styleCheckpoint && <button
+                className="maputnik-button agent-console-restore-style"
+                onClick={this.onRestoreStyle}
+                disabled={this.state.busy}
+                title={t("Restore the map style saved at the end of this session's latest turn")}
+                data-wd-key="agent-console:restore-style"
+              >
+                <MdRestore />
+                {t("Restore this session's style")}
+              </button>}
+            </div>
           </header>
           <AgentConversation
             session={activeSession}

@@ -211,6 +211,106 @@ describe("agent console", () => {
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual("Test Style");
   });
 
+  test("undoes only the latest user turn after multiple tool rounds", async () => {
+    const page = currentPage();
+    const streamFunctionCall = (callId: string, code: string) => [
+      "event: response.output_item.done",
+      `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":${JSON.stringify(callId)},"name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
+      "",
+      "",
+    ].join("\n");
+    await page.route("http://localhost:8888/responses", route => {
+      const input = route.request().postDataJSON().input ?? [];
+      const serializedInput = JSON.stringify(input);
+      const callOutputs = new Set(input
+        .filter((item: any) => item.type === "function_call_output")
+        .map((item: any) => item.call_id));
+
+      if (serializedInput.includes("Second request")) {
+        if (!callOutputs.has("second-name")) {
+          return route.fulfill({
+            contentType: "text/event-stream",
+            body: streamFunctionCall("second-name", "style.name = 'Second turn style'; return style.name;"),
+          });
+        }
+        if (!callOutputs.has("second-metadata")) {
+          return route.fulfill({
+            contentType: "text/event-stream",
+            body: streamFunctionCall("second-metadata", "style.metadata = {agentTurn: 'second'}; return style.metadata;"),
+          });
+        }
+        return route.fulfill({contentType: "text/event-stream", body: ""});
+      }
+
+      if (!callOutputs.has("first-name")) {
+        return route.fulfill({
+          contentType: "text/event-stream",
+          body: streamFunctionCall("first-name", "style.name = 'First turn style'; return style.name;"),
+        });
+      }
+      return route.fulfill({contentType: "text/event-stream", body: ""});
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "First request");
+    await when.click("agent-console:send");
+    await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual("First turn style");
+
+    await when.chooseImageFromPicker("test.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>");
+    await when.setValue("agent-console:input", "Second request");
+    await when.click("agent-console:send");
+    await then(get.styleFromLocalStorage()).shouldDeepNestedInclude({
+      name: "Second turn style",
+      metadata: {agentTurn: "second"},
+    });
+
+    await when.click("agent-console:undo-turn");
+
+    await then(get.elementByTestId("agent-console:notice")).shouldContainText("The latest agent turn has been undone.");
+    await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual("First turn style");
+    expect((await get.styleFromLocalStorage().get()).metadata.agentTurn).toBeUndefined();
+    expect(await get.elementsText("agent-console:messages").get()).toContain("First request");
+    expect(await get.elementsText("agent-console:messages").get()).not.toContain("Second request");
+    await then(get.elementByTestId("agent-console:input")).shouldHaveValue("Second request");
+    await then(get.element(".agent-console-pending-image")).shouldExist();
+    expect(await get.elementAttribute("agent-console:undo-turn", "disabled").get()).toBe("");
+  });
+
+  test("undoes the first turn to a persisted empty session", async () => {
+    const page = currentPage();
+    await page.route("http://localhost:8888/responses", route => route.fulfill({
+      contentType: "text/event-stream",
+      body: "",
+    }));
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Only request");
+    await when.click("agent-console:send");
+    await when.click("agent-console:undo-turn");
+
+    await then(get.element(".agent-console-session--active .agent-console-session-select")).shouldHaveText("New session");
+    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Ask the agent to inspect or modify the live map.");
+    await then(get.elementByTestId("agent-console:input")).shouldHaveValue("Only request");
+    await then(get.elementByTestId("agent-console:restore-style")).shouldNotExist();
+
+    await when.modal.close("modal:agent-workspace");
+    await when.setStyle("geojson");
+    await when.click("nav:agent-workspace");
+
+    await then(get.element(".agent-console-session--active .agent-console-session-select")).shouldHaveText("New session");
+    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Ask the agent to inspect or modify the live map.");
+    await then(get.elementByTestId("agent-console:restore-style")).shouldNotExist();
+    expect(await get.elementAttribute("agent-console:undo-turn", "disabled").get()).toBe("");
+  });
+
   test("renders turns with markdown and collapsed tool execution details", async () => {
     const page = currentPage();
     const agentCode = "return 6 * 7;";

@@ -213,8 +213,13 @@
   "Restore this session's style": "恢复此会话样式",
   "Restore the map style saved at the end of this session's latest turn": "恢复到此会话最近一轮结束时保存的地图样式",
   "Could not restore map style": "无法恢复地图样式",
+  "Could not undo agent turn": "无法撤销 Agent 回合",
   "Running tool...": "正在运行工具……",
   "Stop generating": "停止生成",
+  "The latest agent turn has been undone.": "已撤销最近一轮 Agent。",
+  "The map has changed since this turn ended. Restore this session's style before undoing the turn.": "地图在本轮结束后发生了变化。请先恢复此会话的样式，再撤销本轮。",
   "Tool call": "工具调用",
+  "Undo the latest agent turn and restore its text and images to the composer": "撤销最近一轮 Agent，并将其中的文本和图片恢复到输入框",
+  "Undo this turn's style and conversation": "撤销本轮样式和对话",
   "You": "你"
 }

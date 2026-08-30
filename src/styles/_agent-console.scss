@@ -160,6 +160,14 @@
   }
 }
 
+.agent-console-chat-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: vars.$margin-2;
+  min-width: 0;
+}
+
 .agent-console-generating {
   display: flex;
   align-items: center;

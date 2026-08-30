@@ -12,8 +12,13 @@
   "Restore this session's style": "Restore this session's style",
   "Restore the map style saved at the end of this session's latest turn": "Restore the map style saved at the end of this session's latest turn",
   "Could not restore map style": "Could not restore map style",
+  "Could not undo agent turn": "Could not undo agent turn",
   "Running tool...": "Running tool...",
   "Stop generating": "Stop generating",
+  "The latest agent turn has been undone.": "The latest agent turn has been undone.",
+  "The map has changed since this turn ended. Restore this session's style before undoing the turn.": "The map has changed since this turn ended. Restore this session's style before undoing the turn.",
   "Tool call": "Tool call",
+  "Undo the latest agent turn and restore its text and images to the composer": "Undo the latest agent turn and restore its text and images to the composer",
+  "Undo this turn's style and conversation": "Undo this turn's style and conversation",
   "You": "You"
 }
