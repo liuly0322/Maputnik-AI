@@ -1,3 +1,4 @@
+import {replaceDevelopmentOpenMapTilesToken} from "../config/tokens";
 import { emptyStyle, ensureStyleValidity } from "./style";
 import { type StyleSpecificationWithId } from "./definitions";
 
@@ -14,7 +15,7 @@ export function getStyleUrlFromAddressbarAndRemoveItIfNeeded(): string | null {
 export async function loadStyleUrl(styleUrl: string): Promise<StyleSpecificationWithId> {
   console.log("Loading style", styleUrl);
   try {
-    const response = await fetch(styleUrl, {
+    const response = await fetch(replaceDevelopmentOpenMapTilesToken(styleUrl), {
       mode: "cors",
       credentials: "same-origin"
     });

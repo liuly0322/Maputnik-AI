@@ -8,6 +8,7 @@ import { Modal } from "./Modal";
 import { InputButton } from "../InputButton";
 import { InputUrl } from "../InputUrl";
 
+import {replaceDevelopmentOpenMapTilesToken} from "../../config/tokens";
 import { ensureStyleValidity } from "../../libs/style";
 import publicStyles from "../../config/styles.json";
 
@@ -92,7 +93,7 @@ class ModalOpenInternal extends React.Component<ModalOpenInternalProps, ModalOpe
 
     let canceled: boolean = false;
 
-    fetch(styleUrl, {
+    fetch(replaceDevelopmentOpenMapTilesToken(styleUrl), {
       mode: "cors",
       credentials: "same-origin"
     })

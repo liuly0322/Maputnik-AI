@@ -6,10 +6,18 @@ const defaultAccessTokens = {
   locationiq: "pk.put_your_api_key_here7bb23dffeb4",
 };
 
+function isLocalDevelopmentHostname(hostname: string) {
+  const normalizedHostname = hostname.toLowerCase();
+  return normalizedHostname === "localhost"
+    || normalizedHostname.startsWith("127.")
+    || normalizedHostname === "::1"
+    || normalizedHostname === "[::1]";
+}
+
 function getAccessTokens(hostname: string) {
   return {
     ...defaultAccessTokens,
-    openmaptiles: hostname.toLowerCase() === "localhost"
+    openmaptiles: isLocalDevelopmentHostname(hostname)
       ? localhostOpenMapTilesToken
       : defaultAccessTokens.openmaptiles,
   };
@@ -18,5 +26,16 @@ function getAccessTokens(hostname: string) {
 const hostname = typeof window === "undefined" ? "" : window.location.hostname;
 const tokens = getAccessTokens(hostname);
 
-export { getAccessTokens };
+function replaceDevelopmentOpenMapTilesToken(
+  value: string,
+  replacementToken = tokens.openmaptiles
+) {
+  return value.replace(localhostOpenMapTilesToken, replacementToken);
+}
+
+export {
+  getAccessTokens,
+  isLocalDevelopmentHostname,
+  replaceDevelopmentOpenMapTilesToken,
+};
 export default tokens;

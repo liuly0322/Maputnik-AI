@@ -31,7 +31,7 @@ import { ModalGlobalState } from "./modals/ModalGlobalState";
 import { ModalAgentWorkspace } from "./modals/ModalAgentWorkspace";
 
 import {downloadGlyphsMetadata, downloadSpriteMetadata} from "../libs/metadata";
-import { emptyStyle, getAccessToken, replaceAccessTokens } from "../libs/style";
+import { emptyStyle, replaceAccessTokenInUrl, replaceAccessTokens } from "../libs/style";
 import { undoMessages, redoMessages } from "../libs/diffmessage";
 import { createStyleStore, type IStyleStore } from "../libs/store/style-store-factory";
 import { RevisionStore } from "../libs/revisions";
@@ -44,34 +44,6 @@ import { DatasetStore } from "../libs/dataset-store";
 
 // Buffer must be defined globally for @maplibre/maplibre-gl-style-spec validate() function to succeed.
 window.Buffer = buffer.Buffer;
-
-function setFetchAccessToken(url: string, mapStyle: StyleSpecification) {
-  const matchesTilehosting = url.match(/\.tilehosting\.com/);
-  const matchesMaptiler = url.match(/\.maptiler\.com/);
-  const matchesThunderforest = url.match(/\.thunderforest\.com/);
-  const matchesLocationIQ = url.match(/\.locationiq\.com/);
-  if (matchesTilehosting || matchesMaptiler) {
-    const accessToken = getAccessToken("openmaptiles", mapStyle, {allowFallback: true});
-    if (accessToken) {
-      return url.replace("{key}", accessToken);
-    }
-  }
-  else if (matchesThunderforest) {
-    const accessToken = getAccessToken("thunderforest", mapStyle, {allowFallback: true});
-    if (accessToken) {
-      return url.replace("{key}", accessToken);
-    }
-  }
-  else if (matchesLocationIQ) {
-    const accessToken = getAccessToken("locationiq", mapStyle, {allowFallback: true});
-    if (accessToken) {
-      return url.replace("{key}", accessToken);
-    }
-  }
-  else {
-    return url;
-  }
-}
 
 function updateRootSpec(spec: any, fieldName: string, newValues: any) {
   return {
@@ -376,20 +348,20 @@ export class App extends React.Component<any, AppState> {
     const isEmptyLayers = !oldStyle.layers || oldStyle.layers.length === 0;
     const isEmptyStyle = isEmptySources && isEmptyLayers;
 
-    // For the style object, find the urls that has "{key}" and insert the correct API keys
-    // Without this, going from e.g. MapTiler to OpenLayers and back will lose the maptlier key.
+    // Insert the correct API keys into supported provider URLs.
+    // Without this, going from e.g. MapTiler to OpenLayers and back will lose the MapTiler key.
 
     if (newStyle.glyphs && typeof newStyle.glyphs === "string") {
-      newStyle.glyphs = setFetchAccessToken(newStyle.glyphs, newStyle);
+      newStyle.glyphs = replaceAccessTokenInUrl(newStyle.glyphs, newStyle);
     }
 
     if (newStyle.sprite && typeof newStyle.sprite === "string") {
-      newStyle.sprite = setFetchAccessToken(newStyle.sprite, newStyle);
+      newStyle.sprite = replaceAccessTokenInUrl(newStyle.sprite, newStyle);
     }
 
     for (const [_sourceId, source] of Object.entries(newStyle.sources)) {
       if (source && "url" in source && typeof source.url === "string") {
-        source.url = setFetchAccessToken(source.url, newStyle);
+        source.url = replaceAccessTokenInUrl(source.url, newStyle);
       }
     }
 
@@ -667,9 +639,9 @@ export class App extends React.Component<any, AppState> {
         let url = source.url;
 
         try {
-          url = setFetchAccessToken(url!, this.state.mapStyle);
+          url = replaceAccessTokenInUrl(url!, this.state.mapStyle);
         } catch(err) {
-          console.warn("Failed to setFetchAccessToken: ", err);
+          console.warn("Failed to replaceAccessTokenInUrl: ", err);
         }
 
         const setVectorLayers = (json:any) => {

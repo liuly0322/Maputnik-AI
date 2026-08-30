@@ -1,6 +1,6 @@
 import {derefLayers} from "@maplibre/maplibre-gl-style-spec";
 import type {StyleSpecification, LayerSpecification} from "maplibre-gl";
-import tokens from "../config/tokens";
+import tokens, {replaceDevelopmentOpenMapTilesToken} from "../config/tokens";
 import type {StyleSpecificationWithId} from "./definitions";
 
 // Empty style is always used if no style could be restored or fetched
@@ -56,6 +56,37 @@ function getAccessToken(sourceName: string, mapStyle: StyleSpecification, opts: 
   return accessToken;
 }
 
+function replaceAccessTokenInUrl(url: string, mapStyle: StyleSpecification) {
+  const matchesTilehosting = url.match(/\.tilehosting\.com/);
+  const matchesMaptiler = url.match(/\.maptiler\.com/);
+  const matchesThunderforest = url.match(/\.thunderforest\.com/);
+  const matchesLocationIQ = url.match(/\.locationiq\.com/);
+
+  if (matchesTilehosting || matchesMaptiler) {
+    const accessToken = getAccessToken("openmaptiles", mapStyle, {allowFallback: true});
+    if (accessToken) {
+      return replaceDevelopmentOpenMapTilesToken(
+        url.replace("{key}", accessToken),
+        accessToken
+      );
+    }
+  }
+  else if (matchesThunderforest) {
+    const accessToken = getAccessToken("thunderforest", mapStyle, {allowFallback: true});
+    if (accessToken) {
+      return url.replace("{key}", accessToken);
+    }
+  }
+  else if (matchesLocationIQ) {
+    const accessToken = getAccessToken("locationiq", mapStyle, {allowFallback: true});
+    if (accessToken) {
+      return url.replace("{key}", accessToken);
+    }
+  }
+
+  return url;
+}
+
 function replaceSourceAccessToken(mapStyle: StyleSpecification, sourceName: string, opts={}) {
   const source = mapStyle.sources[sourceName];
   if(!source) return mapStyle;
@@ -89,6 +120,9 @@ function replaceSourceAccessToken(mapStyle: StyleSpecification, sourceName: stri
     sourceUrl = `${source.url}?api_key=${accessToken}`;
   } else {
     sourceUrl = source.url.replace("{key}", accessToken);
+    if (authSourceName === "openmaptiles") {
+      sourceUrl = replaceDevelopmentOpenMapTilesToken(sourceUrl, accessToken);
+    }
   }
 
   const changedSources = {
@@ -117,7 +151,10 @@ function replaceAccessTokens(mapStyle: StyleSpecification, opts={}) {
     if (newAccessToken) {
       changedStyle = {
         ...changedStyle,
-        glyphs: mapStyle.glyphs.replace("{key}", newAccessToken)
+        glyphs: replaceDevelopmentOpenMapTilesToken(
+          mapStyle.glyphs.replace("{key}", newAccessToken),
+          newAccessToken
+        )
       };
     }
   }
@@ -144,6 +181,7 @@ export {
   emptyStyle,
   generateId,
   getAccessToken,
+  replaceAccessTokenInUrl,
   replaceAccessTokens,
   stripAccessTokens,
 };
