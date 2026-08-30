@@ -1,6 +1,8 @@
 import { test, expect, describe, beforeEach } from "./utils/fixtures";
 import { MaputnikDriver } from "./maputnik-driver";
-import tokens from "../src/config/tokens.json" with { type: "json" };
+import { getAccessTokens } from "../src/config/tokens";
+
+const tokens = getAccessTokens("localhost");
 
 describe("modals", () => {
   const { given, get, when, then } = new MaputnikDriver();
