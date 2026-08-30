@@ -145,6 +145,21 @@
   background-color: vars.$color-gray;
 }
 
+.agent-console-restore-style {
+  display: inline-flex;
+  align-items: center;
+  gap: vars.$margin-1;
+  border: 1px solid vars.$color-lowgray;
+  line-height: 1.2;
+  white-space: nowrap;
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+}
+
 .agent-console-generating {
   display: flex;
   align-items: center;

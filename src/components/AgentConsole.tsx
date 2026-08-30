@@ -369,7 +369,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       this.props.setStyle(cloneDeep(session.styleCheckpoint));
       this.setState({
         error: undefined,
-        notice: this.props.t("Map style restored."),
+        notice: this.props.t("The latest map style for this session has been restored."),
       });
     }
     catch (error) {
@@ -778,13 +778,14 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
           <header className="agent-console-chat-header">
             <h1>{t("Conversation")}</h1>
             {activeSession?.styleCheckpoint && <button
-              className="maputnik-button"
+              className="maputnik-button agent-console-restore-style"
               onClick={this.onRestoreStyle}
               disabled={this.state.busy}
+              title={t("Restore the map style saved at the end of this session's latest turn")}
               data-wd-key="agent-console:restore-style"
             >
               <MdRestore />
-              {t("Restore map style")}
+              {t("Restore this session's style")}
             </button>}
           </header>
           <AgentConversation

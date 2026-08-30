@@ -207,7 +207,7 @@ describe("agent console", () => {
     await then(get.elementByTestId("agent-console:restore-style")).shouldBeVisible();
     await when.click("agent-console:restore-style");
 
-    await then(get.elementByTestId("agent-console:notice")).shouldContainText("Map style restored.");
+    await then(get.elementByTestId("agent-console:notice")).shouldContainText("The latest map style for this session has been restored.");
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual("Test Style");
   });
 
@@ -302,7 +302,7 @@ describe("agent console", () => {
     await when.click("nav:agent-workspace");
 
     await when.click("agent-console:toggle-sidebar");
-    await when.wait(200);
+    await then(get.elementByTestId("agent-console:sidebar")).shouldHaveCss("width", "48px");
     const consoleBox = await get.elementBox("agent-console").get();
     const sidebar = await get.elementBox("agent-console:sidebar").get();
     const conversation = await get.elementBox("agent-console:chat-card").get();
