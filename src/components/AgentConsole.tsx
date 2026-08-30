@@ -1,5 +1,6 @@
 import React from "react";
-import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdSend, MdStop} from "react-icons/md";
+import cloneDeep from "lodash.clonedeep";
+import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdRestore, MdSend, MdStop} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 import type {Map as MapLibreMap, StyleSpecification} from "maplibre-gl";
 
@@ -51,6 +52,7 @@ type AgentConsoleInternalState = {
   sidebarOpen: boolean;
   busy: boolean;
   error?: string;
+  notice?: string;
 };
 
 const SETTINGS_KEY = "maputnik:agent_settings";
@@ -266,7 +268,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }));
   };
 
-  persistSession = async (session: AgentConsoleSession) => {
+  persistSession = async (session: AgentConsoleSession): Promise<boolean> => {
     try {
       await this.sessionStore.put({
         id: session.id,
@@ -274,7 +276,39 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         inputItems: session.inputItems,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
+        styleCheckpoint: session.styleCheckpoint,
       });
+      return true;
+    }
+    catch (error) {
+      if (this.mounted) {
+        this.setState({
+          error: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+      return false;
+    }
+  };
+
+  saveStyleCheckpoint = async (sessionId: string) => {
+    try {
+      const session = this.state.sessions.find(candidate => candidate.id === sessionId);
+      if (!session) return;
+
+      const updatedAt = Date.now();
+      const styleCheckpoint = this.props.getStyle();
+      const checkpointSession = {
+        ...session,
+        updatedAt,
+        styleCheckpoint,
+      };
+      if (!await this.persistSession(checkpointSession) || !this.mounted) return;
+
+      this.setState(state => ({
+        sessions: state.sessions.map(candidate => candidate.id === sessionId
+          ? {...candidate, updatedAt, styleCheckpoint}
+          : candidate),
+      }));
     }
     catch (error) {
       if (!this.mounted) return;
@@ -297,14 +331,15 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       inputItems: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      styleCheckpoint: null,
     };
     const sessions = [session, ...this.state.sessions];
-    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], error: undefined});
+    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], error: undefined, notice: undefined});
     void this.persistSession(session);
   };
 
   onSelectSession = (sessionId: string) => {
-    this.setState({activeSessionId: sessionId, input: "", pendingImages: [], error: undefined});
+    this.setState({activeSessionId: sessionId, input: "", pendingImages: [], error: undefined, notice: undefined});
   };
 
   onDeleteSession = (sessionId: string) => {
@@ -312,7 +347,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const activeSessionId = this.state.activeSessionId === sessionId
       ? sessions[0]?.id ?? null
       : this.state.activeSessionId;
-    this.setState({sessions, activeSessionId, input: "", pendingImages: [], error: undefined});
+    this.setState({sessions, activeSessionId, input: "", pendingImages: [], error: undefined, notice: undefined});
     void this.sessionStore.delete(sessionId).catch(error => {
       if (!this.mounted) return;
       this.setState({
@@ -323,6 +358,26 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   onStop = () => {
     this.responseAbortController?.abort();
+  };
+
+  onRestoreStyle = () => {
+    if (this.state.busy) return;
+    const session = this.state.sessions.find(candidate => candidate.id === this.state.activeSessionId);
+    if (!session?.styleCheckpoint) return;
+
+    try {
+      this.props.setStyle(cloneDeep(session.styleCheckpoint));
+      this.setState({
+        error: undefined,
+        notice: this.props.t("Map style restored."),
+      });
+    }
+    catch (error) {
+      this.setState({
+        notice: undefined,
+        error: `${this.props.t("Could not restore map style")}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
   };
 
   onSend = async () => {
@@ -373,6 +428,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         inputItems: [userItem],
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        styleCheckpoint: null,
       };
       sessions = [session, ...sessions];
       activeSessionId = session.id;
@@ -385,6 +441,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       activeSessionId,
       busy: true,
       error: undefined,
+      notice: undefined,
     });
 
     const nextSession = sessions.find(session => session.id === activeSessionId)!;
@@ -410,8 +467,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
     finally {
       if (this.responseAbortController === abortController) {
+        await this.saveStyleCheckpoint(sessionId);
         this.responseAbortController = null;
-        this.setState({busy: false});
+        if (this.mounted) this.setState({busy: false});
       }
     }
   };
@@ -714,10 +772,20 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       </div>
       <main className="agent-console-main">
         {this.state.error && <p className="agent-console-error" data-wd-key="agent-console:error">{this.state.error}</p>}
+        {this.state.notice && <p className="agent-console-notice" role="status" data-wd-key="agent-console:notice">{this.state.notice}</p>}
 
         <section className="agent-console-chat-card" data-wd-key="agent-console:chat-card">
           <header className="agent-console-chat-header">
             <h1>{t("Conversation")}</h1>
+            {activeSession?.styleCheckpoint && <button
+              className="maputnik-button"
+              onClick={this.onRestoreStyle}
+              disabled={this.state.busy}
+              data-wd-key="agent-console:restore-style"
+            >
+              <MdRestore />
+              {t("Restore map style")}
+            </button>}
           </header>
           <AgentConversation
             session={activeSession}

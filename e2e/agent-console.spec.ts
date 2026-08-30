@@ -136,6 +136,79 @@ describe("agent console", () => {
     await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
     await then(get.elementByTestId("agent-console:messages")).shouldContainText("Partial reply from the agent");
     await then(get.elementByTestId("agent-console:error")).shouldNotExist();
+    await then(get.elementByTestId("agent-console:restore-style")).shouldBeVisible();
+  });
+
+  test("persists per-session style checkpoints and restores them only on request", async () => {
+    const page = currentPage();
+    const changedStyleName = "Changed by second session";
+    await page.route("http://localhost:8888/responses", async route => {
+      const body = route.request().postDataJSON();
+      const serializedInput = JSON.stringify(body.input ?? []);
+      const hasFunctionCallOutput = (body.input ?? []).some((item: any) => item.type === "function_call_output");
+
+      if (serializedInput.includes("Wait without changing the style")) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        return route.fulfill({contentType: "text/event-stream", body: ""});
+      }
+      if (!serializedInput.includes("Change the style for session two")) {
+        return route.fulfill({contentType: "text/event-stream", body: ""});
+      }
+      if (hasFunctionCallOutput) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({error: {message: "Mock failure after style change"}}),
+        });
+      }
+
+      const code = `style.name = ${JSON.stringify(changedStyleName)}; return style.name;`;
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: [
+          "event: response.output_item.done",
+          `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"change_style","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
+          "",
+          "",
+        ].join("\n"),
+      });
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Save original style");
+    await when.click("agent-console:send");
+
+    await then(get.elementByTestId("agent-console:restore-style")).shouldBeVisible();
+    await when.setValue("agent-console:input", "Wait without changing the style");
+    await when.click("agent-console:send");
+    expect(await get.elementAttribute("agent-console:restore-style", "disabled").get()).toBe("");
+    await then(get.elementByTestId("agent-console:send")).shouldBeVisible();
+
+    await when.click("agent-console:new-session");
+    await then(get.elementByTestId("agent-console:restore-style")).shouldNotExist();
+    await when.setValue("agent-console:input", "Change the style for session two");
+    await when.click("agent-console:send");
+
+    await then(get.elementByTestId("agent-console:error")).shouldContainText("Mock failure after style change");
+    await then(get.elementByTestId("agent-console:restore-style")).shouldBeVisible();
+    await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual(changedStyleName);
+
+    await get.element(".agent-console-session-select").filter({hasText: "Save original style"}).click();
+    await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual(changedStyleName);
+
+    await when.modal.close("modal:agent-workspace");
+    await when.setStyle("");
+    await when.click("nav:agent-workspace");
+    await get.element(".agent-console-session-select").filter({hasText: "Save original style"}).click();
+    await then(get.elementByTestId("agent-console:restore-style")).shouldBeVisible();
+    await when.click("agent-console:restore-style");
+
+    await then(get.elementByTestId("agent-console:notice")).shouldContainText("Map style restored.");
+    await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual("Test Style");
   });
 
   test("renders turns with markdown and collapsed tool execution details", async () => {

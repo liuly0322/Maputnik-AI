@@ -1,4 +1,5 @@
 import type {AgentInputItem} from "./agent-client";
+import type {StyleSpecification} from "maplibre-gl";
 
 export type AgentSession = {
   id: string;
@@ -6,6 +7,7 @@ export type AgentSession = {
   inputItems: AgentInputItem[];
   createdAt: number;
   updatedAt: number;
+  styleCheckpoint: StyleSpecification | null;
 };
 
 const DATABASE_NAME = "maputnik-agent";
@@ -30,6 +32,7 @@ function parseAgentSession(value: unknown): AgentSession | null {
     inputItems: session.inputItems,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
+    styleCheckpoint: session.styleCheckpoint ?? null,
   };
 }
 

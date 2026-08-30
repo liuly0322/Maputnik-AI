@@ -40,6 +40,7 @@ function createSession(id: string, createdAt: number): AgentSession {
     inputItems: [{type: "message", role: "user", content: [{type: "input_text", text: `Question ${id}`}]}],
     createdAt,
     updatedAt: createdAt,
+    styleCheckpoint: null,
   };
 }
 
@@ -150,6 +151,37 @@ describe("AgentSessionStore", () => {
     const store = createStore();
     expect(await store.init()).toEqual([session]);
     expect(await readStoredSession(session.id)).toHaveProperty("messages");
+  });
+
+  it("loads old IndexedDB sessions without a style checkpoint", async () => {
+    const setupStore = createStore();
+    await setupStore.init();
+    const session = createSession("without-checkpoint", 1);
+    const {styleCheckpoint: _styleCheckpoint, ...oldSession} = session;
+    await writeStoredSession(oldSession);
+
+    const store = createStore();
+    expect(await store.init()).toEqual([session]);
+  });
+
+  it("persists a style checkpoint in the existing session record", async () => {
+    const store = createStore();
+    await store.init();
+    const session: AgentSession = {
+      ...createSession("with-checkpoint", 1),
+      styleCheckpoint: {
+        version: 8,
+        name: "Session checkpoint",
+        sources: {},
+        layers: [],
+      },
+    };
+
+    await store.put(session);
+
+    expect(await readStoredSession(session.id)).toMatchObject({
+      styleCheckpoint: session.styleCheckpoint,
+    });
   });
 
   it("migrates legacy LocalStorage sessions and removes the old value", async () => {

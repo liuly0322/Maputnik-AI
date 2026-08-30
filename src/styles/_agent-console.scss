@@ -634,6 +634,11 @@
   color: vars.$color-red;
 }
 
+.agent-console-notice {
+  margin: vars.$margin-2 0;
+  color: vars.$color-green;
+}
+
 .agent-console-composer {
   flex-shrink: 0;
   padding: vars.$margin-3;
