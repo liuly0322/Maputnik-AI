@@ -106,7 +106,7 @@ export function AgentConsoleSidebar(props: AgentConsoleSidebarProps) {
           <section className="agent-console-control-block">
             <div className="agent-console-sessions-header">
               <h1>{t("Sessions")}</h1>
-              <button className="maputnik-button" onClick={props.onNewSession} disabled={!props.sessionsReady} data-wd-key="agent-console:new-session">
+              <button className="maputnik-button agent-console-header-action" onClick={props.onNewSession} disabled={!props.sessionsReady} data-wd-key="agent-console:new-session">
                 <MdAdd />
                 {t("New session")}
               </button>
@@ -139,7 +139,7 @@ export function AgentConsoleSidebar(props: AgentConsoleSidebarProps) {
           <section className="agent-console-control-block">
             <div className="agent-console-context-header">
               <h1>{t("Dataset context")}</h1>
-              <button className="maputnik-button" onClick={props.onOpenData} data-wd-key="agent-console:manage-data">
+              <button className="maputnik-button agent-console-header-action" onClick={props.onOpenData} data-wd-key="agent-console:manage-data">
                 {t("Manage data")}
               </button>
             </div>

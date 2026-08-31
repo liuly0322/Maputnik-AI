@@ -11,9 +11,9 @@ $agent-workspace-map-offset: vars.$layout-list-width + vars.$layout-editor-width
   position: absolute;
   top: 50%;
   left: clamp(
-    16px,
+    var(--agent-workspace-inline-gutter),
     calc((100vw + #{$agent-workspace-map-offset} - var(--agent-workspace-width)) / 2),
-    calc(100vw - 16px - var(--agent-workspace-width))
+    calc(100vw - var(--agent-workspace-inline-gutter) - var(--agent-workspace-width))
   );
   transform: translateY(-50%);
   z-index: 1;
@@ -38,8 +38,9 @@ $agent-workspace-map-offset: vars.$layout-list-width + vars.$layout-editor-width
 }
 
 .maputnik-agent-workspace-shell {
+  --agent-workspace-inline-gutter: clamp(16px, 5vw, 96px);
   --agent-workspace-width: min(
-    calc(100vw - 32px),
+    calc(100vw - var(--agent-workspace-inline-gutter) - var(--agent-workspace-inline-gutter)),
     1600px,
     max(1200px, calc((100vw - #{$agent-workspace-map-offset}) * 0.8))
   );

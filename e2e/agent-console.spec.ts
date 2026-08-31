@@ -532,7 +532,7 @@ describe("agent console", () => {
     expect(await get.elementAttribute("agent-console:toggle-sidebar", "aria-label").get()).toBe("Expand controls");
   });
 
-  test("sizes the workspace against the map area and clamps it to narrow viewports", async () => {
+  test("sizes the workspace against the map area with responsive viewport gutters", async () => {
     await when.setViewportSize(2552, 1267);
     await when.click("nav:agent-workspace");
     const wide = await get.elementBox("modal:agent-workspace").get();
@@ -542,11 +542,18 @@ describe("agent console", () => {
     expect(wide!.width).toBeCloseTo(1585.6, 0);
     await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
 
+    await when.setViewportSize(1366, 768);
+    const laptop = await get.elementBox("modal:agent-workspace").get();
+    expect(laptop).not.toBeNull();
+    expect(laptop!.x).toBeCloseTo(97.7, 0);
+    expect(laptop!.width).toBeCloseTo(1200, 0);
+    expect(1366 - laptop!.x - laptop!.width).toBeCloseTo(68.3, 0);
+
     await when.setViewportSize(680, 720);
     const narrow = await get.elementBox("modal:agent-workspace").get();
     expect(narrow).not.toBeNull();
-    expect(narrow!.x).toBeCloseTo(16, 0);
-    expect(narrow!.width).toBeCloseTo(648, 0);
+    expect(narrow!.x).toBeCloseTo(34, 0);
+    expect(narrow!.width).toBeCloseTo(612, 0);
     await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
     await then(get.elementByTestId("agent-console:chat-card")).shouldNotOverflowHorizontally();
   });

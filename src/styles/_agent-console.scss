@@ -420,18 +420,29 @@
 }
 
 .agent-console-settings-header,
+.agent-console-sessions-header,
 .agent-console-context-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: vars.$margin-3;
+  margin-bottom: vars.$margin-3;
+
+  h1 {
+    margin-bottom: 0;
+  }
 }
 
-.agent-console-sessions-header {
-  display: flex;
+.agent-console-header-action {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: vars.$margin-3;
+  justify-content: center;
+  gap: vars.$margin-1;
+  white-space: nowrap;
+
+  svg {
+    flex: 0 0 auto;
+  }
 }
 
 .agent-console-sessions {
