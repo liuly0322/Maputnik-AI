@@ -13,7 +13,7 @@
 > **With a single sentence, Maputnik AI turns Shanghai's shopping malls and coffee shops into an interactive map—ready to explore, style, and refine.**
 
 > [!IMPORTANT]
-> All data stays local in your browser. Settings and sessions are stored in Local Storage, and uploaded datasets are stored in IndexedDB. Content is only sent out when you explicitly call your configured AI endpoint.
+> All data stays local in your browser. Content is only sent out when you explicitly call your configured AI endpoint.
 
 Maputnik AI is an AI-assisted map editor. Choose a base map, import your CSV data, and describe what you want in natural language. The AI can restyle the map, create data visualizations, and help you refine the result in the same editable workspace.
 
@@ -78,7 +78,7 @@ This repository preserves Maputnik's copyright notices and is distributed under 
 > **只需一句话，Maputnik AI 就能把上海的商场和咖啡店呈现在一张可交互的地图上，让你继续探索、设计和调整。**
 
 > [!IMPORTANT]
-> 所有数据都保存在你的浏览器本地。设置与会话保存在 Local Storage，上传的数据集保存在 IndexedDB。只有在你主动调用已配置的 AI 端点时，内容才会被发送出去。
+> 所有数据都保存在你的浏览器本地。只有在你主动调用已配置的 AI 端点时，内容才会被发送出去。
 
 Maputnik AI 是一个 AI 辅助的地图编辑器。选择一个底图，导入你的 CSV 数据，并用自然语言描述你想要的效果。AI 可以重新设计地图、创建数据可视化，并在同一个可编辑工作区中帮助你完善结果。
 
