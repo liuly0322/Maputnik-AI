@@ -6,18 +6,21 @@
   <a href="#overview">English</a> · <a href="#中文说明">简体中文</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="Maputnik AI demo" width="100%" />
+</p>
+
+> **With a single sentence, Maputnik AI turns Shanghai's shopping malls and coffee shops into an interactive map—ready to explore, style, and refine.**
+
+> [!IMPORTANT]
+> All data stays local in your browser. Settings and sessions are stored in Local Storage, and uploaded datasets are stored in IndexedDB. Content is only sent out when you explicitly call your configured AI endpoint.
+
 Maputnik AI is an AI-assisted map editor. Choose a base map, import your CSV data, and describe what you want in natural language. The AI can restyle the map, create data visualizations, and help you refine the result in the same editable workspace.
 
 > **Try it online:** [**liuly.moe/Maputnik-AI/**](https://liuly.moe/Maputnik-AI/). The demo does not provide an AI service, so you need to enter your own API key, endpoint, and model in **Agent Settings**.
 
 > [!NOTE]
 > Currently, only the **Responses API** is supported. You can use the OpenAI API or any other compatible endpoint.
-
-<p align="center">
-  <img src="docs/assets/demo.gif" alt="Maputnik AI demo" width="100%" />
-</p>
-
-> **With a single sentence, Maputnik AI turns Shanghai's shopping malls and coffee shops into an interactive map—ready to explore, style, and refine.**
 
 <a id="overview"></a>
 
@@ -68,18 +71,21 @@ This repository preserves Maputnik's copyright notices and is distributed under 
 
 ## 中文说明
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="Maputnik AI 演示" width="100%" />
+</p>
+
+> **只需一句话，Maputnik AI 就能把上海的商场和咖啡店呈现在一张可交互的地图上，让你继续探索、设计和调整。**
+
+> [!IMPORTANT]
+> 所有数据都保存在你的浏览器本地。设置与会话保存在 Local Storage，上传的数据集保存在 IndexedDB。只有在你主动调用已配置的 AI 端点时，内容才会被发送出去。
+
 Maputnik AI 是一个 AI 辅助的地图编辑器。选择一个底图，导入你的 CSV 数据，并用自然语言描述你想要的效果。AI 可以重新设计地图、创建数据可视化，并在同一个可编辑工作区中帮助你完善结果。
 
 > **在线试用：** [**liuly.moe/Maputnik-AI/**](https://liuly.moe/Maputnik-AI/)。演示中未提供 AI 服务，你需要在**代理设置**中输入你自己的 API 密钥、端点和模型。
 
 > [!NOTE]
 > 目前仅支持 **Responses API**。你可以使用 OpenAI API 或任何其他兼容的端点。
-
-<p align="center">
-  <img src="docs/assets/demo.gif" alt="Maputnik AI 演示" width="100%" />
-</p>
-
-> **只需一句话，Maputnik AI 就能把上海的商场和咖啡店呈现在一张可交互的地图上，让你继续探索、设计和调整。**
 
 ## 你可以做什么
 
