@@ -868,6 +868,9 @@
   textarea {
     width: 100%;
     min-height: 70px;
+    max-height: calc(14em + 22px);
+    field-sizing: content;
+    overflow-y: auto;
     resize: vertical;
     padding: vars.$margin-3;
     border: 1px solid vars.$color-midgray;
