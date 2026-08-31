@@ -3,15 +3,113 @@
 .agent-export-panel {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   gap: vars.$margin-3;
+}
+
+.agent-export-section {
+  padding: vars.$margin-4;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 8px;
+  background-color: vars.$color-black;
+}
+
+.agent-export-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: vars.$margin-3;
+
+  h1 {
+    margin-top: vars.$margin-3;
+    margin-bottom: 0;
+  }
+}
+
+.agent-export-description {
+  max-width: 820px;
+  margin: vars.$margin-3 0 0;
+  color: vars.$color-lowgray;
+  line-height: 1.5;
+}
+
+.agent-export-overlay-note {
+  display: flex;
+  align-items: flex-start;
+  gap: vars.$margin-2;
+  margin-top: vars.$margin-3;
+  padding: vars.$margin-3;
+  border: 1px solid rgba(83, 185, 114, 0.32);
+  border-radius: 5px;
+  background-color: rgba(83, 185, 114, 0.08);
+  color: vars.$color-lowgray;
+
+  svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: vars.$color-green;
+  }
+
+  p {
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+.agent-export-map-status {
+  margin: vars.$margin-3 0 0;
+  color: vars.$color-lowgray;
+  font-size: vars.$font-size-6;
 }
 
 .agent-export-actions {
   display: flex;
   flex-wrap: wrap;
   gap: vars.$margin-2;
+  margin-top: vars.$margin-4;
+}
+
+.agent-export-button {
+  flex: 0 1 auto;
+  justify-content: center;
+  border: 1px solid vars.$color-midgray;
+  white-space: nowrap;
+
+  > svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &--base {
+    border-color: rgba(164, 164, 164, 0.5);
+  }
+
+  &--overlay {
+    border-color: rgba(83, 185, 114, 0.5);
+  }
+
+  &--both {
+    background-color: vars.$color-white;
+    color: vars.$color-black;
+
+    &:hover {
+      background-color: vars.$color-green;
+      color: vars.$color-black;
+    }
+  }
 }
 
 .agent-export-status {
+  margin-bottom: 0;
   color: vars.$color-green;
+}
+
+@media (max-width: 760px) {
+  .agent-export-section {
+    padding: vars.$margin-3;
+  }
+
+  .agent-export-button {
+    flex: 0 1 auto;
+  }
 }

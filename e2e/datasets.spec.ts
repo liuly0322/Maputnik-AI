@@ -19,9 +19,12 @@ describe("datasets", () => {
     await when.chooseCsvFromPicker("points.csv", csv);
     await then(get.elementByTestId("datasets:list")).shouldContainText("points.csv");
     await then(get.elementByTestId("datasets:list")).shouldContainText("2 rows");
-    await then(get.elementByTestId("datasets:list")).shouldContainText("name, lon, lat, value");
+    await then(get.elementByTestId("datasets:list")).shouldContainText("name");
+    await then(get.elementByTestId("datasets:list")).shouldContainText("lon");
+    await then(get.elementByTestId("datasets:list")).shouldContainText("lat");
+    await then(get.elementByTestId("datasets:list")).shouldContainText("value");
 
-    await when.click("agent-workspace:back-to-chat");
+    await when.click("agent-workspace:tab-chat");
     await then(get.elementByTestId("agent-console:dataset-chips")).shouldContainText("points.csv");
     await then(get.elementByTestId("agent-console:dataset-chips")).shouldContainText("csv · 2 rows");
     await then(get.element("div.agent-console-dataset-chip")).shouldExist();

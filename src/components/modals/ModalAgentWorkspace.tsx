@@ -143,7 +143,6 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
               <DatasetPanel
                 store={this.props.datasetStore}
                 onDatasetsChange={this.props.onDatasetsChange}
-                onBack={() => this.setState({view: "chat"})}
               />
             </div>
             <div className={`agent-workspace-view ${this.state.view === "export" ? "agent-workspace-view--active" : ""}`}>

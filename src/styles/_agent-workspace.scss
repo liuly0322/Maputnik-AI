@@ -71,18 +71,25 @@ body.maputnik-modal-open {
   display: flex;
   flex-shrink: 0;
   gap: vars.$margin-2;
-  margin-bottom: vars.$margin-3;
+  margin: calc(vars.$margin-3 * -1) calc(vars.$margin-3 * -1) vars.$margin-3;
+  padding: vars.$margin-3;
+  border-bottom: 1px solid vars.$color-midgray;
+  background-color: vars.$color-gray;
 }
 
 .agent-workspace-tab {
   display: flex;
   align-items: center;
   gap: vars.$margin-2;
-  padding: vars.$margin-2 vars.$margin-3;
+  min-width: 88px;
+  justify-content: center;
+  padding: vars.$margin-3 vars.$margin-4;
   border: 1px solid vars.$color-midgray;
   border-radius: 5px;
   background-color: vars.$color-gray;
   color: vars.$color-lowgray;
+  font-size: vars.$font-size-5;
+  font-weight: 500;
 
   &--active {
     border-color: vars.$color-lowgray;
@@ -93,6 +100,15 @@ body.maputnik-modal-open {
   &:focus-visible {
     outline: 2px solid vars.$color-white;
     outline-offset: 2px;
+  }
+}
+
+@media (max-width: 640px) {
+  .agent-workspace-tab {
+    min-width: 0;
+    flex: 1;
+    padding-right: vars.$margin-2;
+    padding-left: vars.$margin-2;
   }
 }
 

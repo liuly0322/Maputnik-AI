@@ -359,7 +359,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     if (!this.state.sessionsReady) return;
     const session: AgentConsoleSession = {
       id: generateId(),
-      title: "New session",
+      title: this.props.t("New session"),
       messages: [],
       inputItems: [],
       createdAt: Date.now(),
@@ -488,7 +488,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       model: this.state.model.trim(),
     };
     if (!settings.apiKey || !settings.endpoint || !settings.model) {
-      this.setState({error: "API key, endpoint, and model are required."});
+      this.setState({error: this.props.t("API key, endpoint, and model are required.")});
       return;
     }
 
