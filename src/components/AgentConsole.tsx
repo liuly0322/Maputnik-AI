@@ -55,6 +55,8 @@ type AgentConsoleInternalState = {
 };
 
 const SETTINGS_KEY = "maputnik:agent_settings";
+const STREAMING_UPDATE_INTERVAL_MS = 100;
+const BOTTOM_SCROLL_TOLERANCE_PX = 8;
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -108,6 +110,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   private messagesEndRef = React.createRef<HTMLDivElement>();
   private sessionStore = new AgentSessionStore();
   private settingsSaveTimer: number | null = null;
+  private streamingUpdateTimer: number | null = null;
+  private pendingStreamingMessages: {sessionId: string; messages: ChatMessage[]} | null = null;
+  private shouldAutoScrollAfterUpdate = false;
   private responseAbortController: AbortController | null = null;
   private turnUndoStyles = new Map<string, AgentTurnUndoStyle>();
   private previewReadySessionIds = new Set<string>();
@@ -163,19 +168,10 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
   };
 
-  componentDidUpdate(_prevProps: AgentConsoleInternalProps, prevState: AgentConsoleInternalState) {
-    if (prevState.sessions === this.state.sessions) {
-      return;
-    }
-
-    const prevSession = prevState.sessions.find(session => session.id === prevState.activeSessionId);
-    const currentSession = this.state.sessions.find(session => session.id === this.state.activeSessionId);
-    const prevLast = prevSession?.messages[prevSession.messages.length - 1]?.content ?? "";
-    const currentLast = currentSession?.messages[currentSession.messages.length - 1]?.content ?? "";
-
-    if (prevSession?.messages.length !== currentSession?.messages.length || prevLast !== currentLast) {
-      this.messagesEndRef.current?.scrollIntoView({behavior: "smooth", block: "end"});
-    }
+  componentDidUpdate() {
+    if (!this.shouldAutoScrollAfterUpdate) return;
+    this.shouldAutoScrollAfterUpdate = false;
+    this.messagesEndRef.current?.scrollIntoView({behavior: "smooth", block: "end"});
   }
 
   buildExecutionContext = (): AgentExecutionContext => {
@@ -192,9 +188,52 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     if (this.settingsSaveTimer !== null) {
       window.clearTimeout(this.settingsSaveTimer);
     }
+    if (this.streamingUpdateTimer !== null) {
+      window.clearTimeout(this.streamingUpdateTimer);
+    }
+    this.pendingStreamingMessages = null;
     this.saveSettingsNow();
     this.sessionStore.close();
   }
+
+  isMessagesNearBottom = () => {
+    const messagesEnd = this.messagesEndRef.current;
+    const messagesContainer = messagesEnd?.closest(".agent-console-messages");
+    if (!(messagesContainer instanceof HTMLElement)) return false;
+
+    return messagesContainer.scrollHeight
+      - messagesContainer.scrollTop
+      - messagesContainer.clientHeight <= BOTTOM_SCROLL_TOLERANCE_PX;
+  };
+
+  flushStreamingMessages = async () => {
+    if (this.streamingUpdateTimer !== null) {
+      window.clearTimeout(this.streamingUpdateTimer);
+      this.streamingUpdateTimer = null;
+    }
+
+    const pending = this.pendingStreamingMessages;
+    this.pendingStreamingMessages = null;
+    if (!pending || !this.mounted) return;
+
+    this.shouldAutoScrollAfterUpdate = pending.sessionId === this.state.activeSessionId
+      && this.isMessagesNearBottom();
+    await new Promise<void>(resolve => {
+      this.setState(state => ({
+        sessions: updateSession(state.sessions, pending.sessionId, {messages: pending.messages}),
+      }), resolve);
+    });
+  };
+
+  scheduleStreamingMessages = (sessionId: string, messages: ChatMessage[]) => {
+    this.pendingStreamingMessages = {sessionId, messages};
+    if (this.streamingUpdateTimer !== null) return;
+
+    this.streamingUpdateTimer = window.setTimeout(() => {
+      this.streamingUpdateTimer = null;
+      void this.flushStreamingMessages();
+    }, STREAMING_UPDATE_INTERVAL_MS);
+  };
 
   saveSettingsNow = () => {
     saveSettings({
@@ -321,6 +360,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   };
 
   onSelectSession = (sessionId: string) => {
+    this.shouldAutoScrollAfterUpdate = true;
     this.setState({activeSessionId: sessionId, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined});
   };
 
@@ -481,6 +521,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       activeSessionId = session.id;
     }
 
+    this.shouldAutoScrollAfterUpdate = true;
     this.setState({
       sessions,
       input: "",
@@ -506,10 +547,12 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         createExecutionContext: this.buildExecutionContext,
         generateId,
         onMessagesChange: messages => {
-          streamingSessions = updateSession(streamingSessions, sessionId, {messages});
-          this.setState({sessions: streamingSessions});
+          this.scheduleStreamingMessages(sessionId, messages);
         },
         onInputItemsChange: async (inputItems, messages) => {
+          await this.flushStreamingMessages();
+          this.shouldAutoScrollAfterUpdate = sessionId === this.state.activeSessionId
+            && this.isMessagesNearBottom();
           streamingSessions = updateSession(streamingSessions, sessionId, {messages, inputItems});
           this.setState({sessions: streamingSessions});
           const session = streamingSessions.find(candidate => candidate.id === sessionId);
@@ -526,6 +569,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
     finally {
       if (this.responseAbortController === abortController) {
+        await this.flushStreamingMessages();
         await this.saveStyleCheckpoint(sessionId);
         this.responseAbortController = null;
         if (this.mounted) this.setState({busy: false});
