@@ -35,6 +35,18 @@ export class ModalDriver {
       await this.helper.when.click(key + ".close-modal");
     },
 
+    openAgentStyleChanges: async () => {
+      await this.helper.when.click("agent-console:preview-style-changes");
+    },
+
+    closeAgentStyleChanges: async () => {
+      await this.helper.when.click("agent-style-change-preview:close");
+    },
+
+    toggleAgentStyleChange: async (index: number) => {
+      await this.helper.when.click(`agent-style-change-preview:item:${index}`);
+    },
+
     /**
      * Adds a source of the given type from the sources modal, keeping whatever
      * defaults that type's editor prefills.

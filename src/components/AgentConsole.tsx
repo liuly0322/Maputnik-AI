@@ -1,7 +1,7 @@
 import React from "react";
 import cloneDeep from "lodash.clonedeep";
 import isEqual from "lodash.isequal";
-import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete, MdImage, MdRestore, MdSend, MdStop, MdUndo} from "react-icons/md";
+import {MdAdd, MdChevronLeft, MdChevronRight, MdCompareArrows, MdDelete, MdImage, MdRestore, MdSend, MdStop, MdUndo} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 import type {Map as MapLibreMap, StyleSpecification} from "maplibre-gl";
 
@@ -31,6 +31,7 @@ import {
 import {createDatasetWorkspace, type Dataset} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 import {AgentConversation} from "./AgentConversation";
+import {AgentStyleChangePreview} from "./AgentStyleChangePreview";
 
 type AgentConsoleInternalProps = {
   getMap(): MapLibreMap | null;
@@ -56,6 +57,7 @@ type AgentConsoleInternalState = {
   activeSessionId: string | null;
   settingsOpen: boolean;
   sidebarOpen: boolean;
+  stylePreviewOpen: boolean;
   busy: boolean;
   error?: string;
   notice?: string;
@@ -138,6 +140,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   private settingsSaveTimer: number | null = null;
   private responseAbortController: AbortController | null = null;
   private turnUndoStyles = new Map<string, AgentTurnUndoStyle>();
+  private previewReadySessionIds = new Set<string>();
   private mounted = false;
 
   constructor(props: AgentConsoleInternalProps) {
@@ -154,6 +157,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       activeSessionId: null,
       settingsOpen: false,
       sidebarOpen: true,
+      stylePreviewOpen: false,
       busy: false,
     };
   }
@@ -311,6 +315,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       };
       if (!await this.persistSession(checkpointSession) || !this.mounted) return;
 
+      this.previewReadySessionIds.add(sessionId);
       this.setState(state => ({
         sessions: state.sessions.map(candidate => candidate.id === sessionId
           ? {...candidate, updatedAt, styleCheckpoint}
@@ -341,21 +346,22 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       styleCheckpoint: null,
     };
     const sessions = [session, ...this.state.sessions];
-    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], error: undefined, notice: undefined});
+    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined});
     void this.persistSession(session);
   };
 
   onSelectSession = (sessionId: string) => {
-    this.setState({activeSessionId: sessionId, input: "", pendingImages: [], error: undefined, notice: undefined});
+    this.setState({activeSessionId: sessionId, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined});
   };
 
   onDeleteSession = (sessionId: string) => {
     this.turnUndoStyles.delete(sessionId);
+    this.previewReadySessionIds.delete(sessionId);
     const sessions = this.state.sessions.filter(session => session.id !== sessionId);
     const activeSessionId = this.state.activeSessionId === sessionId
       ? sessions[0]?.id ?? null
       : this.state.activeSessionId;
-    this.setState({sessions, activeSessionId, input: "", pendingImages: [], error: undefined, notice: undefined});
+    this.setState({sessions, activeSessionId, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined});
     void this.sessionStore.delete(sessionId).catch(error => {
       if (!this.mounted) return;
       this.setState({
@@ -368,7 +374,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     this.responseAbortController?.abort();
   };
 
-  onRestoreStyle = () => {
+  onLoadStyle = () => {
     if (this.state.busy) return;
     const session = this.state.sessions.find(candidate => candidate.id === this.state.activeSessionId);
     if (!session?.styleCheckpoint) return;
@@ -377,19 +383,20 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       this.props.setStyle(cloneDeep(session.styleCheckpoint));
       this.setState({
         error: undefined,
-        notice: this.props.t("The latest map style for this session has been restored."),
+        notice: this.props.t("The latest saved style for this conversation has been loaded."),
       });
     }
     catch (error) {
       this.setState({
         notice: undefined,
-        error: `${this.props.t("Could not restore map style")}: ${error instanceof Error ? error.message : String(error)}`,
+        error: `${this.props.t("Could not load map style")}: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
   };
 
   onUndoTurn = async () => {
     if (this.state.busy) return;
+    this.setState({stylePreviewOpen: false});
     const sessionId = this.state.activeSessionId;
     if (!sessionId) return;
 
@@ -401,7 +408,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     if (!session.styleCheckpoint || !isEqual(currentStyle, session.styleCheckpoint)) {
       this.setState({
         notice: undefined,
-        error: this.props.t("The map has changed since this turn ended. Restore this session's style before undoing the turn."),
+        error: this.props.t("The map has changed since this turn ended. Load this conversation's saved style before undoing the turn."),
       });
       return;
     }
@@ -429,10 +436,12 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       if (!this.mounted) return;
 
       this.turnUndoStyles.delete(sessionId);
+      this.previewReadySessionIds.delete(sessionId);
       this.setState(state => ({
         sessions: state.sessions.map(candidate => candidate.id === sessionId ? undoneSession : candidate),
         input: result.input,
         pendingImages: result.pendingImages,
+        stylePreviewOpen: false,
         error: undefined,
         notice: this.props.t("The latest agent turn has been undone."),
       }));
@@ -478,6 +487,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     let activeSessionId = this.state.activeSessionId;
     const activeSession = sessions.find(session => session.id === activeSessionId);
     const turnSessionId = activeSession?.id ?? generateId();
+    this.previewReadySessionIds.delete(turnSessionId);
     this.turnUndoStyles.set(turnSessionId, createAgentTurnUndoStyle(this.props.getStyle()));
 
     if (activeSession) {
@@ -507,6 +517,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       pendingImages: [],
       activeSessionId,
       busy: true,
+      stylePreviewOpen: false,
       error: undefined,
       notice: undefined,
     });
@@ -707,6 +718,11 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         ? t("Live map is attached.")
         : t("Waiting for the map to load...");
     const activeSession = this.state.sessions.find(session => session.id === this.state.activeSessionId);
+    const previewStyleBefore = activeSession ? this.turnUndoStyles.get(activeSession.id) : undefined;
+    const previewAvailable = !!previewStyleBefore
+      && !!activeSession?.styleCheckpoint
+      && this.previewReadySessionIds.has(activeSession.id)
+      && !this.state.busy;
 
     return <div
       className={`agent-console ${this.state.sidebarOpen ? "agent-console--sidebar-open" : "agent-console--sidebar-closed"}`}
@@ -846,32 +862,51 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
             <h1>{t("Conversation")}</h1>
             <div className="agent-console-chat-actions">
               <button
-                className="maputnik-button agent-console-restore-style"
+                className="maputnik-button agent-console-turn-action"
+                onClick={() => this.setState(state => ({stylePreviewOpen: !state.stylePreviewOpen}))}
+                disabled={!previewAvailable}
+                title={t("Preview style changes from the latest turn")}
+                aria-expanded={this.state.stylePreviewOpen && previewAvailable}
+                aria-controls="agent-style-change-preview"
+                data-wd-key="agent-console:preview-style-changes"
+              >
+                <MdCompareArrows />
+                {t("Preview changes")}
+              </button>
+              <button
+                className="maputnik-button agent-console-turn-action"
                 onClick={() => void this.onUndoTurn()}
                 disabled={this.state.busy || !activeSession || !this.turnUndoStyles.has(activeSession.id)}
                 title={t("Undo the latest agent turn and restore its text and images to the composer")}
                 data-wd-key="agent-console:undo-turn"
               >
                 <MdUndo />
-                {t("Undo this turn's style and conversation")}
+                {t("Undo")}
               </button>
               {activeSession?.styleCheckpoint && <button
-                className="maputnik-button agent-console-restore-style"
-                onClick={this.onRestoreStyle}
+                className="maputnik-button agent-console-turn-action"
+                onClick={this.onLoadStyle}
                 disabled={this.state.busy}
-                title={t("Restore the map style saved at the end of this session's latest turn")}
-                data-wd-key="agent-console:restore-style"
+                title={t("Load the most recently saved style for this conversation")}
+                data-wd-key="agent-console:load-style"
               >
                 <MdRestore />
-                {t("Restore this session's style")}
+                {t("Load")}
               </button>}
             </div>
           </header>
-          <AgentConversation
-            session={activeSession}
-            busy={this.state.busy}
-            messagesEndRef={this.messagesEndRef}
-          />
+          <div className="agent-console-chat-body">
+            <AgentConversation
+              session={activeSession}
+              busy={this.state.busy}
+              messagesEndRef={this.messagesEndRef}
+            />
+            {this.state.stylePreviewOpen && previewAvailable && <AgentStyleChangePreview
+              before={previewStyleBefore}
+              after={activeSession.styleCheckpoint!}
+              onClose={() => this.setState({stylePreviewOpen: false})}
+            />}
+          </div>
 
           <div className="agent-console-composer">
             <input

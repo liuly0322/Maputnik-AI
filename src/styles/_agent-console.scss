@@ -122,6 +122,7 @@
 }
 
 .agent-console-chat-card {
+  position: relative;
   display: flex;
   flex: 1;
   min-width: 0;
@@ -132,6 +133,198 @@
   border-radius: 8px;
   background-color: vars.$color-black;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.agent-console-chat-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+
+  > .agent-console-messages {
+    flex: 1;
+  }
+}
+
+.agent-style-change-preview {
+  display: flex;
+  flex: 0 0 clamp(320px, 38%, 440px);
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid vars.$color-midgray;
+  background-color: vars.$color-black;
+  color: vars.$color-white;
+}
+
+.agent-style-change-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: vars.$margin-2;
+  padding: vars.$margin-3;
+  border-bottom: 1px solid vars.$color-midgray;
+  background-color: vars.$color-gray;
+
+  h2 {
+    margin: 0 0 vars.$margin-2;
+    font-size: vars.$font-size-5;
+  }
+}
+
+.agent-style-change-close {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+
+  &:focus-visible {
+    outline: 2px solid vars.$color-white;
+    outline-offset: 1px;
+  }
+}
+
+.agent-style-change-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: vars.$margin-1;
+}
+
+.agent-style-change-badge {
+  padding: 2px 7px;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 999px;
+  color: vars.$color-lowgray;
+  font-size: vars.$font-size-6;
+}
+
+.agent-style-change-badge--added {
+  border-color: rgba(83, 185, 114, 0.5);
+  color: vars.$color-green;
+}
+
+.agent-style-change-badge--removed {
+  border-color: rgba(236, 91, 91, 0.55);
+  color: vars.$color-red;
+}
+
+.agent-style-change-preview-content {
+  flex: 1;
+  min-height: 0;
+  padding: vars.$margin-3;
+  overflow-y: auto;
+}
+
+.agent-style-change-empty {
+  margin: vars.$margin-4 0;
+  color: vars.$color-lowgray;
+  text-align: center;
+}
+
+.agent-style-change-group {
+  & + & {
+    margin-top: vars.$margin-4;
+  }
+
+  h3 {
+    margin: 0 0 vars.$margin-2;
+    color: vars.$color-lowgray;
+    font-size: vars.$font-size-6;
+    font-weight: normal;
+    text-transform: uppercase;
+  }
+}
+
+.agent-style-change-item {
+  min-width: 0;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 5px;
+  background-color: vars.$color-gray;
+
+  & + & {
+    margin-top: vars.$margin-2;
+  }
+}
+
+.agent-style-change-item--added {
+  border-left-color: vars.$color-green;
+}
+
+.agent-style-change-item--removed {
+  border-left-color: vars.$color-red;
+}
+
+.agent-style-change-item-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: vars.$margin-1;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: vars.$color-white;
+  text-align: left;
+
+  code {
+    overflow: hidden;
+    font-family: monospace;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:focus-visible {
+    outline: 2px solid vars.$color-lowgray;
+    outline-offset: -2px;
+  }
+}
+
+.agent-style-change-chevron {
+  flex: 0 0 auto;
+  transition: transform 140ms ease;
+}
+
+.agent-style-change-item-toggle[aria-expanded="true"] .agent-style-change-chevron {
+  transform: rotate(90deg);
+}
+
+.agent-style-change-values {
+  border-top: 1px solid vars.$color-midgray;
+}
+
+.agent-style-change-value {
+  padding: 8px;
+
+  & + & {
+    border-top: 1px solid vars.$color-midgray;
+  }
+
+  h4 {
+    margin: 0 0 vars.$margin-1;
+    color: vars.$color-lowgray;
+    font-size: vars.$font-size-6;
+    font-weight: normal;
+    text-transform: uppercase;
+  }
+
+  pre {
+    max-width: 100%;
+    max-height: 260px;
+    margin: 0;
+    padding: vars.$margin-2;
+    overflow: auto;
+    border-radius: 3px;
+    background-color: vars.$color-black;
+    color: vars.$color-white;
+    font-family: monospace;
+    font-size: vars.$font-size-6;
+    line-height: 1.4;
+    white-space: pre;
+  }
 }
 
 .agent-console-chat-header {
@@ -145,7 +338,7 @@
   background-color: vars.$color-gray;
 }
 
-.agent-console-restore-style {
+.agent-console-turn-action {
   display: inline-flex;
   align-items: center;
   gap: vars.$margin-1;
@@ -158,12 +351,19 @@
     height: 16px;
     flex: none;
   }
+
+  &:disabled {
+    border-color: vars.$color-midgray;
+    background-color: vars.$color-gray;
+    color: vars.$color-lowgray;
+  }
 }
 
 .agent-console-chat-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: vars.$margin-2;
   min-width: 0;
 }
@@ -698,7 +898,8 @@
 
 @media screen and (prefers-reduced-motion: reduce) {
   .agent-console-sidebar,
-  .agent-console-tool-chevron {
+  .agent-console-tool-chevron,
+  .agent-style-change-chevron {
     transition: none;
   }
 
@@ -734,5 +935,14 @@
   .agent-console-message-bubble,
   .agent-console-message--user .agent-console-message-bubble {
     max-width: 92%;
+  }
+
+  .agent-style-change-preview {
+    position: absolute;
+    z-index: 3;
+    inset: 0 0 0 auto;
+    width: min(440px, calc(100% - 24px));
+    border-left: 1px solid vars.$color-midgray;
+    box-shadow: -12px 0 28px rgba(0, 0, 0, 0.44);
   }
 }
