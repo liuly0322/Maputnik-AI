@@ -1,37 +1,32 @@
 import React from "react";
 import cloneDeep from "lodash.clonedeep";
 import isEqual from "lodash.isequal";
-import {MdAdd, MdChevronLeft, MdChevronRight, MdCompareArrows, MdDelete, MdImage, MdRestore, MdSend, MdStop, MdUndo} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 import type {Map as MapLibreMap, StyleSpecification} from "maplibre-gl";
 
 import {
   buildAgentInstructions,
-  createFunctionCallOutputItem,
   createUserInputItem,
   defaultAgentSettings,
-  streamResponsesApi,
-  type AgentInputItem,
   type AgentSettings,
 } from "../libs/agent-client";
 import {
   createAgentExecutionContext,
-  executeAgentJavaScript,
-  stringifyResult,
-  truncateToolOutput,
   type AgentExecutionContext,
 } from "../libs/agent-executor";
-import {createChatMessages, type ChatMessage} from "../libs/agent-conversation";
-import {AgentSessionStore, type AgentSession} from "../libs/agent-session-store";
+import {createChatMessages, type AgentConsoleSession, type ChatMessage} from "../libs/agent-conversation";
+import {runAgentResponseLoop} from "../libs/agent-response-runner";
+import {AgentSessionStore} from "../libs/agent-session-store";
 import {
   createAgentTurnUndoStyle,
   undoLatestAgentTurn,
   type AgentTurnUndoStyle,
 } from "../libs/agent-turn-undo";
-import {createDatasetWorkspace, type Dataset} from "../libs/dataset";
+import {createDatasetWorkspace} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
-import {AgentConversation} from "./AgentConversation";
-import {AgentStyleChangePreview} from "./AgentStyleChangePreview";
+import {AgentConsoleChat} from "./AgentConsoleChat";
+import {AgentConsoleComposer} from "./AgentConsoleComposer";
+import {AgentConsoleSidebar} from "./AgentConsoleSidebar";
 
 type AgentConsoleInternalProps = {
   getMap(): MapLibreMap | null;
@@ -41,10 +36,6 @@ type AgentConsoleInternalProps = {
   onOpenData(): void;
   renderer: "mlgljs" | "ol";
 } & WithTranslation;
-
-type AgentConsoleSession = AgentSession & {
-  messages: ChatMessage[];
-};
 
 type AgentConsoleInternalState = {
   apiKey: string;
@@ -64,17 +55,6 @@ type AgentConsoleInternalState = {
 };
 
 const SETTINGS_KEY = "maputnik:agent_settings";
-const MAX_TOOL_ROUNDS = 20;
-
-function getDatasetCsvSummary(dataset: Dataset) {
-  switch (dataset.type) {
-    case "csv":
-      return {
-        rowCount: dataset.data.rows.length,
-        columns: dataset.data.columns,
-      };
-  }
-}
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -121,16 +101,6 @@ function updateSession(
       updatedAt: Date.now(),
     };
   });
-}
-
-function extractAssistantText(item: Record<string, any>) {
-  if (Array.isArray(item.content)) {
-    return item.content
-      .map((part: any) => part.text ?? part.output_text ?? "")
-      .filter(Boolean)
-      .join("\n");
-  }
-  return typeof item.content === "string" ? item.content : stringifyResult(item.content);
 }
 
 class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, AgentConsoleInternalState> {
@@ -525,16 +495,27 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const nextSession = sessions.find(session => session.id === activeSessionId)!;
     const sessionId = nextSession.id;
     await this.persistSession(nextSession);
+    let streamingSessions = sessions;
     try {
-      await this.runStreamingLoop(
+      await runAgentResponseLoop({
         settings,
-        buildAgentInstructions(this.props.datasetStore.getAll()),
-        sessionId,
-        nextSession.inputItems,
-        nextSession.messages,
-        sessions,
-        abortController.signal
-      );
+        instructions: buildAgentInstructions(this.props.datasetStore.getAll()),
+        initialInputItems: nextSession.inputItems,
+        initialMessages: nextSession.messages,
+        signal: abortController.signal,
+        createExecutionContext: this.buildExecutionContext,
+        generateId,
+        onMessagesChange: messages => {
+          streamingSessions = updateSession(streamingSessions, sessionId, {messages});
+          this.setState({sessions: streamingSessions});
+        },
+        onInputItemsChange: async (inputItems, messages) => {
+          streamingSessions = updateSession(streamingSessions, sessionId, {messages, inputItems});
+          this.setState({sessions: streamingSessions});
+          const session = streamingSessions.find(candidate => candidate.id === sessionId);
+          if (session) await this.persistSession(session);
+        },
+      });
     }
     catch (error) {
       if (!abortController.signal.aborted) {
@@ -549,152 +530,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         this.responseAbortController = null;
         if (this.mounted) this.setState({busy: false});
       }
-    }
-  };
-
-  runStreamingLoop = async (
-    settings: AgentSettings,
-    instructions: string,
-    sessionId: string,
-    initialInputItems: AgentInputItem[],
-    initialMessages: ChatMessage[],
-    initialSessions: AgentConsoleSession[],
-    signal: AbortSignal
-  ) => {
-    let sessions = initialSessions;
-    let inputItems = initialInputItems;
-    let messages = initialMessages;
-    let functionCalls: Array<Record<string, any>> = [];
-    const updateMessages = () => {
-      sessions = updateSession(sessions, sessionId, {
-        messages,
-      });
-      this.setState({sessions});
-    };
-
-    const commitInputItems = async () => {
-      sessions = updateSession(sessions, sessionId, {
-        messages,
-        inputItems,
-      });
-      this.setState({sessions});
-      const session = sessions.find(candidate => candidate.id === sessionId);
-      if (session) {
-        await this.persistSession(session);
-      }
-    };
-
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-      functionCalls = [];
-      const messageIdsByItemId = new Map<string, string>();
-      const completedItemIds = new Set<string>();
-      const commitPartialMessages = async () => {
-        const partialMessages = Array.from(messageIdsByItemId.entries())
-          .filter(([itemId]) => !completedItemIds.has(itemId))
-          .map(([, messageId]) => messages.find(message => message.id === messageId))
-          .filter((message): message is ChatMessage => !!message?.content)
-          .map(message => ({
-            type: "message",
-            role: "assistant",
-            content: [{type: "output_text", text: message.content}],
-          }));
-        if (partialMessages.length > 0) {
-          inputItems = [...inputItems, ...partialMessages];
-          await commitInputItems();
-        }
-      };
-
-      try {
-        for await (const event of streamResponsesApi(settings, instructions, inputItems, signal)) {
-          const data = event.data;
-
-          if (event.type === "response.output_text.delta" && data.delta) {
-            let messageId = messageIdsByItemId.get(data.item_id);
-            if (!messageId) {
-              messageId = generateId();
-              messageIdsByItemId.set(data.item_id, messageId);
-              messages = [...messages, {id: messageId, role: "assistant", content: ""}];
-            }
-            messages = messages.map(message => {
-              if (message.id !== messageId) return message;
-              return {...message, content: message.content + data.delta};
-            });
-            updateMessages();
-          }
-          else if (event.type === "response.output_item.done" && data.item) {
-            const item = data.item;
-            if (typeof item.id === "string") completedItemIds.add(item.id);
-            inputItems = [...inputItems, item];
-            if (item.type === "function_call") {
-              functionCalls.push(item);
-            }
-            else if (item.type === "message" && item.role === "assistant") {
-              const text = extractAssistantText(item);
-              let messageId = messageIdsByItemId.get(item.id);
-              if (!messageId && text) {
-                messageId = generateId();
-                messageIdsByItemId.set(item.id, messageId);
-                messages = [...messages, {id: messageId, role: "assistant", content: text}];
-              }
-              else if (messageId) {
-                messages = messages.map(message => message.id === messageId ? {...message, content: text} : message);
-              }
-            }
-            await commitInputItems();
-          }
-        }
-      }
-      catch (error) {
-        if (!signal.aborted) throw error;
-        await commitPartialMessages();
-        return;
-      }
-
-      if (signal.aborted) {
-        await commitPartialMessages();
-        return;
-      }
-
-      if (functionCalls.length === 0) {
-        break;
-      }
-
-      for (const functionCall of functionCalls) {
-        if (signal.aborted) return;
-        let code = "";
-        try {
-          code = JSON.parse(functionCall.arguments ?? "{}").code ?? "";
-        }
-        catch {
-          // Keep the default empty code when tool arguments cannot be parsed.
-        }
-        let output: string;
-        try {
-          output = await executeAgentJavaScript(code, this.buildExecutionContext());
-        }
-        catch (error) {
-          output = `Error: ${error instanceof Error ? error.stack || error.message : String(error)}`;
-        }
-        if (signal.aborted) return;
-        output = truncateToolOutput(output);
-        inputItems = [...inputItems, createFunctionCallOutputItem(functionCall.call_id, output)];
-        messages = [...messages, {
-          id: generateId(),
-          role: "tool",
-          content: output || "(no output)",
-          callId: functionCall.call_id,
-        }];
-        await commitInputItems();
-      }
-    }
-
-    if (functionCalls.length > 0) {
-      messages = [...messages, {
-        id: generateId(),
-        role: "assistant",
-        content: `Reached the maximum of ${MAX_TOOL_ROUNDS} tool calls. Send another message to continue.`,
-      }];
-      updateMessages();
     }
   };
 
@@ -728,231 +563,60 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       className={`agent-console ${this.state.sidebarOpen ? "agent-console--sidebar-open" : "agent-console--sidebar-closed"}`}
       data-wd-key="agent-console"
     >
-      <div className="agent-console-sidebar-slot">
-        <aside
-          className={`agent-console-sidebar ${this.state.sidebarOpen ? "agent-console-sidebar--open" : ""}`}
-          data-wd-key="agent-console:sidebar"
-          id="agent-console-sidebar"
-        >
-          <div className="agent-console-sidebar-header">
-            <span>{t("Controls")}</span>
-            <button
-              className="maputnik-button agent-console-sidebar-toggle"
-              onClick={this.onToggleSidebar}
-              title={this.state.sidebarOpen ? t("Collapse controls") : t("Expand controls")}
-              aria-label={this.state.sidebarOpen ? t("Collapse controls") : t("Expand controls")}
-              aria-expanded={this.state.sidebarOpen}
-              aria-controls="agent-console-sidebar"
-              data-wd-key="agent-console:toggle-sidebar"
-            >
-              {this.state.sidebarOpen ? <MdChevronLeft /> : <MdChevronRight />}
-            </button>
-          </div>
-          {this.state.sidebarOpen && <div className="agent-console-sidebar-content">
-            <div className="agent-console-controls">
-              <section className="agent-console-control-block">
-                <div className="agent-console-settings-header">
-                  <h1>{t("Agent settings")}</h1>
-                  <button className="maputnik-button" onClick={() => this.setState(state => ({settingsOpen: !state.settingsOpen}))} data-wd-key="agent-console:toggle-settings">
-                    {this.state.settingsOpen ? t("Hide") : t("Settings")}
-                  </button>
-                </div>
-                {this.state.settingsOpen && <div className="agent-console-settings">
-                  <label>
-                    <span>{t("API key")}</span>
-                    <input
-                      type="password"
-                      value={this.state.apiKey}
-                      onChange={e => this.onSettingsChange("apiKey", e.target.value)}
-                      data-wd-key="agent-console:api-key"
-                    />
-                  </label>
-                  <label>
-                    <span>{t("Endpoint")}</span>
-                    <input
-                      type="text"
-                      value={this.state.endpoint}
-                      onChange={e => this.onSettingsChange("endpoint", e.target.value)}
-                      data-wd-key="agent-console:endpoint"
-                    />
-                  </label>
-                  <label>
-                    <span>{t("Model")}</span>
-                    <input
-                      type="text"
-                      value={this.state.model}
-                      onChange={e => this.onSettingsChange("model", e.target.value)}
-                      data-wd-key="agent-console:model"
-                    />
-                  </label>
-                </div>}
-                <p data-wd-key="agent-console:map-status">{mapStatus}</p>
-              </section>
-
-              <section className="agent-console-control-block">
-                <div className="agent-console-sessions-header">
-                  <h1>{t("Sessions")}</h1>
-                  <button className="maputnik-button" onClick={this.onNewSession} disabled={!this.state.sessionsReady} data-wd-key="agent-console:new-session">
-                    <MdAdd />
-                    {t("New session")}
-                  </button>
-                </div>
-                <div className="agent-console-sessions" data-wd-key="agent-console:sessions">
-                  {this.state.sessions.length === 0 && <p>{t("No sessions yet.")}</p>}
-                  {this.state.sessions.map(session => {
-                    return <div
-                      className={`agent-console-session ${session.id === this.state.activeSessionId ? "agent-console-session--active" : ""}`}
-                      key={session.id}
-                      data-wd-key={`agent-console:session:${session.id}`}
-                    >
-                      <button
-                        className="agent-console-session-select"
-                        onClick={() => this.onSelectSession(session.id)}
-                      >
-                        {session.title}
-                      </button>
-                      <button
-                        className="agent-console-session-delete"
-                        onClick={() => this.onDeleteSession(session.id)}
-                        aria-label={t("Delete session")}
-                        data-wd-key={`agent-console:delete-session:${session.id}`}
-                      >
-                        <MdDelete />
-                      </button>
-                    </div>;
-                  })}
-                </div>
-              </section>
-
-              <section className="agent-console-control-block">
-                <div className="agent-console-context-header">
-                  <h1>{t("Dataset context")}</h1>
-                  <button className="maputnik-button" onClick={this.props.onOpenData} data-wd-key="agent-console:manage-data">
-                    {t("Manage data")}
-                  </button>
-                </div>
-                <div className="agent-console-dataset-chips" data-wd-key="agent-console:dataset-chips">
-                  {this.props.datasetStore.getAll().length === 0 && <p>{t("No datasets loaded.")}</p>}
-                  {this.props.datasetStore.getAll().map(dataset => {
-                    const summary = getDatasetCsvSummary(dataset);
-                    return <div
-                      key={dataset.id}
-                      className="agent-console-dataset-chip"
-                      data-wd-key={`agent-console:dataset-chip:${dataset.id}`}
-                    >
-                      <span className="agent-console-dataset-chip-name">{dataset.name}</span>
-                      <span className="agent-console-dataset-chip-meta">
-                        {dataset.type} · {summary.rowCount} {t("rows")} · {summary.columns.slice(0, 4).join(", ")}
-                      </span>
-                    </div>;
-                  })}
-                </div>
-              </section>
-            </div>
-          </div>
-          }
-        </aside>
-      </div>
+      <AgentConsoleSidebar
+        t={t}
+        open={this.state.sidebarOpen}
+        settingsOpen={this.state.settingsOpen}
+        settings={{
+          apiKey: this.state.apiKey,
+          endpoint: this.state.endpoint,
+          model: this.state.model,
+        }}
+        mapStatus={mapStatus}
+        sessions={this.state.sessions}
+        sessionsReady={this.state.sessionsReady}
+        activeSessionId={this.state.activeSessionId}
+        datasetStore={this.props.datasetStore}
+        onToggle={this.onToggleSidebar}
+        onToggleSettings={() => this.setState(state => ({settingsOpen: !state.settingsOpen}))}
+        onSettingsChange={this.onSettingsChange}
+        onNewSession={this.onNewSession}
+        onSelectSession={this.onSelectSession}
+        onDeleteSession={this.onDeleteSession}
+        onOpenData={this.props.onOpenData}
+      />
       <main className="agent-console-main">
         {this.state.error && <p className="agent-console-error" data-wd-key="agent-console:error">{this.state.error}</p>}
         {this.state.notice && <p className="agent-console-notice" role="status" data-wd-key="agent-console:notice">{this.state.notice}</p>}
-
-        <section className="agent-console-chat-card" data-wd-key="agent-console:chat-card">
-          <header className="agent-console-chat-header">
-            <h1>{t("Conversation")}</h1>
-            <div className="agent-console-chat-actions">
-              <button
-                className="maputnik-button agent-console-turn-action"
-                onClick={() => this.setState(state => ({stylePreviewOpen: !state.stylePreviewOpen}))}
-                disabled={!previewAvailable}
-                title={t("Preview style changes from the latest turn")}
-                aria-expanded={this.state.stylePreviewOpen && previewAvailable}
-                aria-controls="agent-style-change-preview"
-                data-wd-key="agent-console:preview-style-changes"
-              >
-                <MdCompareArrows />
-                {t("Preview changes")}
-              </button>
-              <button
-                className="maputnik-button agent-console-turn-action"
-                onClick={() => void this.onUndoTurn()}
-                disabled={this.state.busy || !activeSession || !this.turnUndoStyles.has(activeSession.id)}
-                title={t("Undo the latest agent turn and restore its text and images to the composer")}
-                data-wd-key="agent-console:undo-turn"
-              >
-                <MdUndo />
-                {t("Undo")}
-              </button>
-              {activeSession?.styleCheckpoint && <button
-                className="maputnik-button agent-console-turn-action"
-                onClick={this.onLoadStyle}
-                disabled={this.state.busy}
-                title={t("Load the most recently saved style for this conversation")}
-                data-wd-key="agent-console:load-style"
-              >
-                <MdRestore />
-                {t("Load")}
-              </button>}
-            </div>
-          </header>
-          <div className="agent-console-chat-body">
-            <AgentConversation
-              session={activeSession}
-              busy={this.state.busy}
-              messagesEndRef={this.messagesEndRef}
-            />
-            {this.state.stylePreviewOpen && previewAvailable && <AgentStyleChangePreview
-              before={previewStyleBefore}
-              after={activeSession.styleCheckpoint!}
-              onClose={() => this.setState({stylePreviewOpen: false})}
-            />}
-          </div>
-
-          <div className="agent-console-composer">
-            <input
-              ref={this.imageInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              style={{display: "none"}}
-              onChange={this.onImageChange}
-              data-wd-key="agent-console:image-input"
-            />
-            {this.state.pendingImages.length > 0 && <div className="agent-console-pending-images">
-              {this.state.pendingImages.map((image, index) => {
-                return <div className="agent-console-pending-image" key={`${image}-${index}`}>
-                  <img src={image} alt="" />
-                  <button onClick={() => this.onRemovePendingImage(index)} aria-label={t("Remove image")}>
-                    ×
-                  </button>
-                </div>;
-              })}
-            </div>}
-            <textarea
-              value={this.state.input}
-              onChange={this.onInputChange}
-              onKeyDown={this.onKeyDown}
-              placeholder={t("Describe what you want to inspect or change...")}
-              disabled={this.state.busy || !this.state.sessionsReady}
-              data-wd-key="agent-console:input"
-            />
-            <div className="agent-console-toolbar">
-              <button className="maputnik-button" onClick={this.onAddImage} data-wd-key="agent-console:add-image">
-                <MdImage />
-                {t("Add image")}
-              </button>
-              {this.state.busy
-                ? <button className="maputnik-button agent-console-stop" onClick={this.onStop} data-wd-key="agent-console:stop" aria-label={t("Stop generating")}>
-                  <MdStop />
-                  {t("Stop generating")}
-                </button>
-                : <button className="maputnik-button" onClick={() => void this.onSend()} disabled={!this.state.sessionsReady} data-wd-key="agent-console:send">
-                  <MdSend />
-                  {t("Send")}
-                </button>}
-            </div>
-          </div>
-        </section>
+        <AgentConsoleChat
+          t={t}
+          session={activeSession}
+          busy={this.state.busy}
+          canUndo={!!activeSession && this.turnUndoStyles.has(activeSession.id)}
+          messagesEndRef={this.messagesEndRef}
+          previewStyleBefore={previewStyleBefore}
+          previewAvailable={previewAvailable}
+          stylePreviewOpen={this.state.stylePreviewOpen}
+          onToggleStylePreview={() => this.setState(state => ({stylePreviewOpen: !state.stylePreviewOpen}))}
+          onUndoTurn={() => void this.onUndoTurn()}
+          onLoadStyle={this.onLoadStyle}
+          onCloseStylePreview={() => this.setState({stylePreviewOpen: false})}
+          composer={<AgentConsoleComposer
+            t={t}
+            imageInputRef={this.imageInputRef}
+            input={this.state.input}
+            pendingImages={this.state.pendingImages}
+            busy={this.state.busy}
+            sessionsReady={this.state.sessionsReady}
+            onImageChange={this.onImageChange}
+            onRemovePendingImage={this.onRemovePendingImage}
+            onInputChange={this.onInputChange}
+            onKeyDown={this.onKeyDown}
+            onAddImage={this.onAddImage}
+            onStop={this.onStop}
+            onSend={() => void this.onSend()}
+          />}
+        />
       </main>
     </div>;
   }

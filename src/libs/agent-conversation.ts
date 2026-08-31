@@ -1,4 +1,5 @@
 import type {AgentInputItem} from "./agent-client";
+import type {AgentSession} from "./agent-session-store";
 
 export type ChatMessage = {
   id: string;
@@ -6,6 +7,10 @@ export type ChatMessage = {
   content: string;
   images?: string[];
   callId?: string;
+};
+
+export type AgentConsoleSession = AgentSession & {
+  messages: ChatMessage[];
 };
 
 export type AgentConversationMessage = ChatMessage & {
