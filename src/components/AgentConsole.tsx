@@ -56,7 +56,7 @@ type AgentConsoleInternalState = {
 
 const SETTINGS_KEY = "maputnik:agent_settings";
 const STREAMING_UPDATE_INTERVAL_MS = 100;
-const BOTTOM_SCROLL_TOLERANCE_PX = 8;
+const BOTTOM_SCROLL_TOLERANCE_PX = 24;
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
