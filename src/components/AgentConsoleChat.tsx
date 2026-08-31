@@ -31,7 +31,7 @@ export function AgentConsoleChat(props: AgentConsoleChatProps) {
       <h1>{t("Conversation")}</h1>
       <div className="agent-console-chat-actions">
         <button
-          className="maputnik-button agent-console-turn-action"
+          className="maputnik-button maputnik-button--with-icon agent-console-turn-action"
           onClick={props.onToggleStylePreview}
           disabled={!props.previewAvailable}
           title={t("Preview style changes from the latest turn")}
@@ -43,7 +43,7 @@ export function AgentConsoleChat(props: AgentConsoleChatProps) {
           {t("Preview changes")}
         </button>
         <button
-          className="maputnik-button agent-console-turn-action"
+          className="maputnik-button maputnik-button--with-icon agent-console-turn-action"
           onClick={props.onUndoTurn}
           disabled={props.busy || !props.canUndo}
           title={t("Undo the latest agent turn and restore its text and images to the composer")}
@@ -53,7 +53,7 @@ export function AgentConsoleChat(props: AgentConsoleChatProps) {
           {t("Undo")}
         </button>
         {props.session?.styleCheckpoint && <button
-          className="maputnik-button agent-console-turn-action"
+          className="maputnik-button maputnik-button--with-icon agent-console-turn-action"
           onClick={props.onLoadStyle}
           disabled={props.busy}
           title={t("Load the most recently saved style for this conversation")}

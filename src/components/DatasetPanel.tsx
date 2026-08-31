@@ -77,7 +77,7 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
 
     return <div className="dataset-panel" data-wd-key="agent-workspace:data">
       <div className="dataset-panel-toolbar">
-        <button className="maputnik-button" onClick={this.props.onBack} data-wd-key="agent-workspace:back-to-chat">
+        <button className="maputnik-button maputnik-button--with-icon" onClick={this.props.onBack} data-wd-key="agent-workspace:back-to-chat">
           <MdArrowBack />
           {t("Back to Agent")}
         </button>
@@ -94,7 +94,7 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
           onChange={this.onFileChange}
           data-wd-key="datasets:file-input"
         />
-        <InputButton onClick={this.onBrowseClick} data-wd-key="datasets:upload">
+        <InputButton className="maputnik-button--with-icon" onClick={this.onBrowseClick} data-wd-key="datasets:upload">
           <MdFileUpload />
           {t("Upload CSV")}
         </InputButton>
@@ -118,6 +118,7 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
               <InputButton
                 onClick={() => void this.onRemove(dataset.id)}
                 aria-label={t("Remove dataset")}
+                className="maputnik-button--with-icon"
                 data-wd-key={`datasets:remove:${dataset.id}`}
               >
                 <MdDelete />

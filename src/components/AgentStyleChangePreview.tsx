@@ -44,7 +44,7 @@ export function AgentStyleChangePreview({before, after, onClose}: AgentStyleChan
         </div>
       </div>
       <button
-        className="maputnik-button agent-style-change-close"
+        className="maputnik-button maputnik-button--with-icon agent-style-change-close"
         onClick={onClose}
         aria-label={t("Close style changes")}
         data-wd-key="agent-style-change-preview:close"

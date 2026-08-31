@@ -187,6 +187,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
 
         <div className="agent-export-actions">
           <InputButton
+            className="maputnik-button--with-icon"
             onClick={() => void this.onExport("base")}
             disabled={disabled}
             data-wd-key="agent-export:base"
@@ -195,6 +196,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
             {t("Download base")}
           </InputButton>
           <InputButton
+            className="maputnik-button--with-icon"
             onClick={() => void this.onExport("overlay")}
             disabled={disabled}
             data-wd-key="agent-export:overlay"
@@ -203,6 +205,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
             {t("Download overlay")}
           </InputButton>
           <InputButton
+            className="maputnik-button--with-icon"
             onClick={() => void this.onExportBoth()}
             disabled={disabled}
             data-wd-key="agent-export:both"

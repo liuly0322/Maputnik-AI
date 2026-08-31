@@ -120,6 +120,16 @@
   }
 }
 
+.maputnik-button--with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: vars.$margin-1;
+
+  > svg {
+    flex: 0 0 auto;
+  }
+}
+
 .maputnik-big-button {
   margin-top: vars.$margin-3;
   display: inline-block;

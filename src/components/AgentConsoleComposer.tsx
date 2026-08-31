@@ -48,16 +48,16 @@ export function AgentConsoleComposer(props: AgentConsoleComposerProps) {
       data-wd-key="agent-console:input"
     />
     <div className="agent-console-toolbar">
-      <button className="maputnik-button" onClick={props.onAddImage} data-wd-key="agent-console:add-image">
+      <button className="maputnik-button maputnik-button--with-icon" onClick={props.onAddImage} data-wd-key="agent-console:add-image">
         <MdImage />
         {t("Add image")}
       </button>
       {props.busy
-        ? <button className="maputnik-button agent-console-stop" onClick={props.onStop} data-wd-key="agent-console:stop" aria-label={t("Stop generating")}>
+        ? <button className="maputnik-button maputnik-button--with-icon agent-console-stop" onClick={props.onStop} data-wd-key="agent-console:stop" aria-label={t("Stop generating")}>
           <MdStop />
           {t("Stop generating")}
         </button>
-        : <button className="maputnik-button" onClick={props.onSend} disabled={!props.sessionsReady} data-wd-key="agent-console:send">
+        : <button className="maputnik-button maputnik-button--with-icon" onClick={props.onSend} disabled={!props.sessionsReady} data-wd-key="agent-console:send">
           <MdSend />
           {t("Send")}
         </button>}

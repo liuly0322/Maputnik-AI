@@ -51,7 +51,7 @@ export function AgentConsoleSidebar(props: AgentConsoleSidebarProps) {
       <div className="agent-console-sidebar-header">
         <span>{t("Controls")}</span>
         <button
-          className="maputnik-button agent-console-sidebar-toggle"
+          className="maputnik-button maputnik-button--with-icon agent-console-sidebar-toggle"
           onClick={props.onToggle}
           title={props.open ? t("Collapse controls") : t("Expand controls")}
           aria-label={props.open ? t("Collapse controls") : t("Expand controls")}
@@ -106,7 +106,7 @@ export function AgentConsoleSidebar(props: AgentConsoleSidebarProps) {
           <section className="agent-console-control-block">
             <div className="agent-console-sessions-header">
               <h1>{t("Sessions")}</h1>
-              <button className="maputnik-button agent-console-header-action" onClick={props.onNewSession} disabled={!props.sessionsReady} data-wd-key="agent-console:new-session">
+              <button className="maputnik-button maputnik-button--with-icon agent-console-header-action" onClick={props.onNewSession} disabled={!props.sessionsReady} data-wd-key="agent-console:new-session">
                 <MdAdd />
                 {t("New session")}
               </button>

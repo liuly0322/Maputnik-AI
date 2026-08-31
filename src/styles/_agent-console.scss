@@ -74,9 +74,7 @@
 }
 
 .agent-console-sidebar-toggle {
-  display: inline-flex;
   flex: 0 0 auto;
-  align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
@@ -174,9 +172,7 @@
 }
 
 .agent-style-change-close {
-  display: inline-flex;
   flex: 0 0 auto;
-  align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
@@ -339,9 +335,6 @@
 }
 
 .agent-console-turn-action {
-  display: inline-flex;
-  align-items: center;
-  gap: vars.$margin-1;
   border: 1px solid vars.$color-lowgray;
   line-height: 1.2;
   white-space: nowrap;
@@ -349,7 +342,6 @@
   svg {
     width: 16px;
     height: 16px;
-    flex: none;
   }
 
   &:disabled {
@@ -434,15 +426,9 @@
 }
 
 .agent-console-header-action {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  gap: vars.$margin-1;
   white-space: nowrap;
 
-  svg {
-    flex: 0 0 auto;
-  }
 }
 
 .agent-console-sessions {
