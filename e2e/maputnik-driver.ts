@@ -140,6 +140,14 @@ export class MaputnikDriver {
       await this.helper.when.chooseFileFromPickerWithBuffer(name, "image/svg+xml", content, "agent-console:add-image");
     },
 
+    pasteTextIntoAgentInput: async (text: string) => {
+      await this.helper.when.pasteText("agent-console:input", text);
+    },
+
+    pasteImageIntoAgentInput: async (name: string, mimeType: string, content: string) => {
+      await this.helper.when.pasteFile("agent-console:input", name, mimeType, content);
+    },
+
     dropExampleFile: async () => {
       await this.helper.when.dropFileByFixture("example-style.json", "modal:open.dropzone");
       await this.helper.when.wait(200);

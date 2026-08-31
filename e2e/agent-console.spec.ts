@@ -69,6 +69,42 @@ describe("agent console", () => {
     expect(requestBodies[0].input[0].content.some((part: any) => part.type === "input_image")).toBe(true);
   });
 
+  test("pastes text and an image into the agent input", async () => {
+    const page = currentPage();
+    const requestBodies: any[] = [];
+    await page.route("http://localhost:8888/responses", route => {
+      requestBodies.push(route.request().postDataJSON());
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: "",
+      });
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+
+    await when.focus("agent-console:input");
+    await when.typeText("Inspect");
+    await when.pasteTextIntoAgentInput(" the map");
+    await then(get.elementByTestId("agent-console:input")).shouldHaveValue("Inspect the map");
+
+    await when.pasteImageIntoAgentInput("pasted.png", "image/png", "pasted image");
+    await then(get.element(".agent-console-pending-image")).shouldExist();
+    await then(get.elementByTestId("agent-console:input")).shouldHaveValue("Inspect the map");
+
+    await when.click("agent-console:send");
+    await then(get.elementByTestId("agent-console:send")).shouldBeVisible();
+
+    const content = requestBodies[0].input[0].content;
+    expect(content).toEqual(expect.arrayContaining([
+      {type: "input_text", text: "Inspect the map"},
+    ]));
+    expect(content.some((part: any) => part.type === "input_image" && part.image_url.startsWith("data:image/png;base64,"))).toBe(true);
+  });
+
   test("creates a session when sending with no current conversation", async () => {
     const page = currentPage();
     await page.route("http://localhost:8888/responses", route => route.fulfill({

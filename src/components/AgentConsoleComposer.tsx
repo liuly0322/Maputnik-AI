@@ -13,6 +13,7 @@ type AgentConsoleComposerProps = {
   onRemovePendingImage(index: number): void;
   onInputChange(event: React.ChangeEvent<HTMLTextAreaElement>): void;
   onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void;
+  onPaste(event: React.ClipboardEvent<HTMLTextAreaElement>): void;
   onAddImage(): void;
   onStop(): void;
   onSend(): void;
@@ -43,6 +44,7 @@ export function AgentConsoleComposer(props: AgentConsoleComposerProps) {
       value={props.input}
       onChange={props.onInputChange}
       onKeyDown={props.onKeyDown}
+      onPaste={props.onPaste}
       placeholder={t("Describe what you want to inspect or change...")}
       disabled={props.busy || !props.sessionsReady}
       data-wd-key="agent-console:input"

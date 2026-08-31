@@ -263,8 +263,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     this.imageInputRef.current?.click();
   };
 
-  onImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
+  addImageFiles = (files: File[]) => {
     for (const file of files) {
       if (!file.type.startsWith("image/")) {
         continue;
@@ -279,7 +278,20 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  onImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    this.addImageFiles(Array.from(event.target.files ?? []));
     event.target.value = "";
+  };
+
+  onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData.items)
+      .filter(item => item.kind === "file" && item.type.startsWith("image/"))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    this.addImageFiles(files);
   };
 
   onRemovePendingImage = (index: number) => {
@@ -656,6 +668,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
             onRemovePendingImage={this.onRemovePendingImage}
             onInputChange={this.onInputChange}
             onKeyDown={this.onKeyDown}
+            onPaste={this.onPaste}
             onAddImage={this.onAddImage}
             onStop={this.onStop}
             onSend={() => void this.onSend()}

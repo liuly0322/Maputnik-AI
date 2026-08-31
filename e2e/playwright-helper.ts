@@ -285,6 +285,31 @@ export class PlaywrightHelper {
     /** Types raw text into the focused element (no "{key}" sequence parsing). */
     typeText: (text: string) => this.page.keyboard.type(text),
 
+    pasteText: async (testId: string, text: string) => {
+      const input = this.testId(testId);
+      await input.focus();
+      await this.page.context().grantPermissions(["clipboard-read", "clipboard-write"], {
+        origin: new URL(this.page.url()).origin,
+      });
+      await this.page.evaluate(async value => {
+        await navigator.clipboard.writeText(value);
+      }, text);
+      await this.page.keyboard.press(isMac ? "Meta+V" : "Control+V");
+    },
+
+    pasteFile: async (testId: string, name: string, mimeType: string, content: string) => {
+      const input = this.testId(testId);
+      await input.focus();
+      await input.evaluate((element, file) => {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(new File([file.content], file.name, {type: file.mimeType}));
+        element.dispatchEvent(new ClipboardEvent("paste", {
+          bubbles: true,
+          clipboardData: dataTransfer,
+        }));
+      }, {name, mimeType, content});
+    },
+
     clickButtonByName: async (name: string) => {
       await this.page.getByRole("button", { name }).click();
     },
