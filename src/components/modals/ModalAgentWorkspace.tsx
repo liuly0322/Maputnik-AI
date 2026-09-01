@@ -104,7 +104,7 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
           <div className="maputnik-modal-content">
             <div className="agent-workspace-tabs">
               <button
-                className={`agent-workspace-tab ${this.state.view === "chat" ? "agent-workspace-tab--active" : ""}`}
+                className={`maputnik-button maputnik-button--with-icon agent-workspace-tab ${this.state.view === "chat" ? "maputnik-button-selected" : ""}`}
                 onClick={() => this.setState({view: "chat"})}
                 data-wd-key="agent-workspace:tab-chat"
               >
@@ -112,7 +112,7 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
                 {t("Chat")}
               </button>
               <button
-                className={`agent-workspace-tab ${this.state.view === "data" ? "agent-workspace-tab--active" : ""}`}
+                className={`maputnik-button maputnik-button--with-icon agent-workspace-tab ${this.state.view === "data" ? "maputnik-button-selected" : ""}`}
                 onClick={() => this.setState({view: "data"})}
                 data-wd-key="agent-workspace:tab-data"
               >
@@ -120,7 +120,7 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
                 {t("Data")}
               </button>
               <button
-                className={`agent-workspace-tab ${this.state.view === "export" ? "agent-workspace-tab--active" : ""}`}
+                className={`maputnik-button maputnik-button--with-icon agent-workspace-tab ${this.state.view === "export" ? "maputnik-button-selected" : ""}`}
                 onClick={() => this.setState({view: "export"})}
                 data-wd-key="agent-workspace:tab-export"
               >

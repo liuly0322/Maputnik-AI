@@ -69,33 +69,24 @@ body.maputnik-modal-open {
 
 .agent-workspace-tabs {
   display: flex;
+  align-items: center;
   flex-shrink: 0;
   gap: vars.$margin-2;
   margin: calc(vars.$margin-3 * -1) calc(vars.$margin-3 * -1) vars.$margin-3;
-  padding: vars.$margin-3;
+  padding: vars.$margin-2 vars.$margin-3;
   border-bottom: 1px solid vars.$color-midgray;
   background-color: vars.$color-gray;
 }
 
 .agent-workspace-tab {
-  display: flex;
-  align-items: center;
-  gap: vars.$margin-2;
   min-width: 88px;
+  min-height: 38px;
   justify-content: center;
-  padding: vars.$margin-3 vars.$margin-4;
-  border: 1px solid vars.$color-midgray;
-  border-radius: 5px;
-  background-color: vars.$color-gray;
-  color: vars.$color-lowgray;
+  padding: 7px 16px;
   font-size: vars.$font-size-5;
   font-weight: 500;
-
-  &--active {
-    border-color: vars.$color-lowgray;
-    background-color: vars.$color-midgray;
-    color: vars.$color-white;
-  }
+  line-height: 20px;
+  white-space: nowrap;
 
   &:focus-visible {
     outline: 2px solid vars.$color-white;
