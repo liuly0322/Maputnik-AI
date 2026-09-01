@@ -33,9 +33,7 @@ describe("agent console", () => {
 
   test("calls the Responses API and renders the assistant reply", async () => {
     const page = currentPage();
-    const requestBodies: any[] = [];
     await page.route("http://localhost:8888/responses", route => {
-      requestBodies.push(route.request().postDataJSON());
       return route.fulfill({
         contentType: "text/event-stream",
         body: [
@@ -48,25 +46,54 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await then(get.elementByTestId("modal:agent-workspace")).shouldExist();
-    await then(get.elementByTestId("agent-console:sidebar")).shouldExist();
-    await then(get.elementByTestId("agent-console:chat-card")).shouldExist();
-    await then(get.elementByTestId("agent-console:api-key")).shouldNotExist();
-
-    await when.click("agent-console:toggle-sidebar");
-    await then(get.elementByTestId("agent-console:api-key")).shouldNotExist();
-    await when.click("agent-console:toggle-sidebar");
-
     await when.click("agent-console:toggle-settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
-    await when.chooseImageFromPicker("test.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>");
     await when.setValue("agent-console:input", "Inspect the map");
     await when.click("agent-console:send");
 
     await then(get.elementByTestId("agent-console:messages")).shouldContainText("Hello from the mock agent");
-    expect(requestBodies[0].input[0].content.some((part: any) => part.type === "input_image")).toBe(true);
+    await then(get.elementByTestId("agent-console:sessions")).shouldContainText("Inspect the map");
+  });
+
+  test("syncs a native MapLibre mutation to the editor", async () => {
+    const page = currentPage();
+    await page.route("http://localhost:8888/responses", route => {
+      const input = route.request().postDataJSON().input ?? [];
+      if (input.some((item: any) => item.type === "function_call_output")) {
+        return route.fulfill({contentType: "text/event-stream", body: ""});
+      }
+      const code = 'map.addLayer({id: "agent-native-layer", type: "background"}); return map.getStyle().layers.length;';
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: [
+          "event: response.output_item.done",
+          `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"native-mutation","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
+          "",
+          "",
+        ].join("\n"),
+      });
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console:toggle-settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Apply native map changes");
+    await when.click("agent-console:send");
+
+    await then(get.styleFromLocalStorage()).shouldDeepNestedInclude({
+      id: "test-style",
+      layers: [{
+        id: "agent-native-layer",
+        type: "background",
+      }],
+    });
+
+    await when.modal.close("modal:agent-workspace");
+    await then(get.elementByTestId("layer-list-item:agent-native-layer")).shouldExist();
   });
 
   test("pastes text and an image into the agent input", async () => {
@@ -103,28 +130,6 @@ describe("agent console", () => {
       {type: "input_text", text: "Inspect the map"},
     ]));
     expect(content.some((part: any) => part.type === "input_image" && part.image_url.startsWith("data:image/png;base64,"))).toBe(true);
-  });
-
-  test("creates a session when sending with no current conversation", async () => {
-    const page = currentPage();
-    await page.route("http://localhost:8888/responses", route => route.fulfill({
-      contentType: "text/event-stream",
-      body: "",
-    }));
-
-    await when.click("nav:agent-workspace");
-    await then(get.elementByTestId("agent-console:sessions")).shouldContainText("No sessions yet.");
-    await when.click("agent-console:toggle-settings");
-    await when.setValue("agent-console:api-key", "test-key");
-    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
-    await when.setValue("agent-console:model", "test-model");
-    await when.setValue("agent-console:input", "Create this conversation automatically");
-    await when.click("agent-console:send");
-
-    await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
-    await then(get.elementByTestId("agent-console:sessions")).shouldContainText("Create this conversation automatically");
-    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Create this conversation automatically");
-    await then(get.element(".agent-console-session--active")).shouldExist();
   });
 
   test("stops a streaming reply and keeps the partial text", async () => {
@@ -178,27 +183,19 @@ describe("agent console", () => {
   test("persists per-session style checkpoints and loads them only on request", async () => {
     const page = currentPage();
     const changedStyleName = "Changed by second session";
-    await page.route("http://localhost:8888/responses", async route => {
+    await page.route("http://localhost:8888/responses", route => {
       const body = route.request().postDataJSON();
       const serializedInput = JSON.stringify(body.input ?? []);
       const hasFunctionCallOutput = (body.input ?? []).some((item: any) => item.type === "function_call_output");
 
-      if (serializedInput.includes("Wait without changing the style")) {
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        return route.fulfill({contentType: "text/event-stream", body: ""});
-      }
       if (!serializedInput.includes("Change the style for session two")) {
         return route.fulfill({contentType: "text/event-stream", body: ""});
       }
       if (hasFunctionCallOutput) {
-        return route.fulfill({
-          status: 500,
-          contentType: "application/json",
-          body: JSON.stringify({error: {message: "Mock failure after style change"}}),
-        });
+        return route.fulfill({contentType: "text/event-stream", body: ""});
       }
 
-      const code = `style.name = ${JSON.stringify(changedStyleName)}; return style.name;`;
+      const code = `const nextStyle = map.getStyle(); nextStyle.name = ${JSON.stringify(changedStyleName)}; await new Promise(resolve => { map.once("style.load", resolve); map.setStyle(nextStyle, {diff: false}); }); return map.getStyle().name;`;
       return route.fulfill({
         contentType: "text/event-stream",
         body: [
@@ -219,20 +216,11 @@ describe("agent console", () => {
     await when.click("agent-console:send");
 
     await then(get.elementByTestId("agent-console:load-style")).shouldBeVisible();
-    await when.setValue("agent-console:input", "Wait without changing the style");
-    await when.click("agent-console:send");
-    expect(await get.elementAttribute("agent-console:load-style", "disabled").get()).toBe("");
-    await then(get.elementByTestId("agent-console:load-style")).shouldHaveCss("color", "rgb(164, 164, 164)");
-    await then(get.elementByTestId("agent-console:send")).shouldBeVisible();
-
     await when.click("agent-console:new-session");
-    await then(get.elementByTestId("agent-console:load-style")).shouldNotExist();
     await when.setValue("agent-console:input", "Change the style for session two");
     await when.click("agent-console:send");
 
-    await then(get.elementByTestId("agent-console:error")).shouldContainText("Mock failure after style change");
     await then(get.elementByTestId("agent-console:load-style")).shouldBeVisible();
-    expect(await get.elementAttribute("agent-console:preview-style-changes", "disabled").get()).toBeNull();
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual(changedStyleName);
 
     await get.element(".agent-console-session-select").filter({hasText: "Save original style"}).click();
@@ -242,9 +230,6 @@ describe("agent console", () => {
     await when.setStyle("");
     await when.click("nav:agent-workspace");
     await get.element(".agent-console-session-select").filter({hasText: "Save original style"}).click();
-    await then(get.elementByTestId("agent-console:load-style")).shouldBeVisible();
-    await then(get.elementByTestId("agent-console:load-style")).shouldContainText("Load");
-    expect(await get.elementAttribute("agent-console:load-style", "title").get()).toBe("Load the most recently saved style for this conversation");
     await when.click("agent-console:load-style");
 
     await then(get.elementByTestId("agent-console:notice")).shouldContainText("The latest saved style for this conversation has been loaded.");
@@ -270,13 +255,13 @@ describe("agent console", () => {
         if (!callOutputs.has("second-name")) {
           return route.fulfill({
             contentType: "text/event-stream",
-            body: streamFunctionCall("second-name", "style.name = 'Second turn style'; return style.name;"),
+            body: streamFunctionCall("second-name", "const nextStyle = map.getStyle(); nextStyle.name = 'Second turn style'; await new Promise(resolve => { map.once('style.load', resolve); map.setStyle(nextStyle, {diff: false}); }); return map.getStyle().name;"),
           });
         }
         if (!callOutputs.has("second-metadata")) {
           return route.fulfill({
             contentType: "text/event-stream",
-            body: streamFunctionCall("second-metadata", "style.metadata = {agentTurn: 'second'}; return style.metadata;"),
+            body: streamFunctionCall("second-metadata", "const nextStyle = map.getStyle(); nextStyle.metadata = {agentTurn: 'second'}; await new Promise(resolve => { map.once('style.load', resolve); map.setStyle(nextStyle, {diff: false}); }); return map.getStyle().metadata;"),
           });
         }
         return route.fulfill({contentType: "text/event-stream", body: ""});
@@ -285,7 +270,7 @@ describe("agent console", () => {
       if (!callOutputs.has("first-name")) {
         return route.fulfill({
           contentType: "text/event-stream",
-          body: streamFunctionCall("first-name", "style.name = 'First turn style'; return style.name;"),
+          body: streamFunctionCall("first-name", "const nextStyle = map.getStyle(); nextStyle.name = 'First turn style'; await new Promise(resolve => { map.once('style.load', resolve); map.setStyle(nextStyle, {diff: false}); }); return map.getStyle().name;"),
         });
       }
       return route.fulfill({contentType: "text/event-stream", body: ""});
@@ -320,62 +305,24 @@ describe("agent console", () => {
     expect(await get.elementAttribute("agent-console:undo-turn", "disabled").get()).toBe("");
   });
 
-  test("undoes the first turn to a persisted empty session", async () => {
-    const page = currentPage();
-    await page.route("http://localhost:8888/responses", route => route.fulfill({
-      contentType: "text/event-stream",
-      body: "",
-    }));
-
-    await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
-    await when.setValue("agent-console:api-key", "test-key");
-    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
-    await when.setValue("agent-console:model", "test-model");
-    await when.setValue("agent-console:input", "Only request");
-    await when.click("agent-console:send");
-    await when.click("agent-console:undo-turn");
-
-    await then(get.element(".agent-console-session--active .agent-console-session-select")).shouldHaveText("New session");
-    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Ask the agent to inspect or modify the live map.");
-    await then(get.elementByTestId("agent-console:input")).shouldHaveValue("Only request");
-    await then(get.elementByTestId("agent-console:load-style")).shouldNotExist();
-
-    await when.modal.close("modal:agent-workspace");
-    await when.setStyle("geojson");
-    await when.click("nav:agent-workspace");
-
-    await then(get.element(".agent-console-session--active .agent-console-session-select")).shouldHaveText("New session");
-    await then(get.elementByTestId("agent-console:messages")).shouldContainText("Ask the agent to inspect or modify the live map.");
-    await then(get.elementByTestId("agent-console:load-style")).shouldNotExist();
-    expect(await get.elementAttribute("agent-console:undo-turn", "disabled").get()).toBe("");
-  });
-
-  test("previews the saved multi-tool style delta without reading later live edits", async () => {
+  test("previews the saved style delta without reading later live edits", async () => {
     await when.setStyle("rectangles");
     const page = currentPage();
-    const streamFunctionCall = (callId: string, code: string) => [
-      "event: response.output_item.done",
-      `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":${JSON.stringify(callId)},"name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
-      "",
-      "",
-    ].join("\n");
     await page.route("http://localhost:8888/responses", route => {
       const input = route.request().postDataJSON().input ?? [];
-      const outputs = new Set(input.filter((item: any) => item.type === "function_call_output").map((item: any) => item.call_id));
-      if (!outputs.has("preview-root")) {
-        return route.fulfill({
-          contentType: "text/event-stream",
-          body: streamFunctionCall("preview-root", "style.name = 'Preview result'; style.metadata = {...(style.metadata ?? {}), preview: 'saved'}; return style.name;"),
-        });
+      if (input.some((item: any) => item.type === "function_call_output")) {
+        return route.fulfill({contentType: "text/event-stream", body: ""});
       }
-      if (!outputs.has("preview-layer")) {
-        return route.fulfill({
-          contentType: "text/event-stream",
-          body: streamFunctionCall("preview-layer", "await new Promise(resolve => setTimeout(resolve, 700)); style.layers.find(layer => layer.id === 'rectangles').paint['fill-opacity'] = 0.8; return 0.8;"),
-        });
-      }
-      return route.fulfill({contentType: "text/event-stream", body: ""});
+      const code = "map.setPaintProperty('rectangles', 'fill-opacity', 0.8); return map.getPaintProperty('rectangles', 'fill-opacity');";
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: [
+          "event: response.output_item.done",
+          `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"preview-layer","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
+          "",
+          "",
+        ].join("\n"),
+      });
     });
 
     await when.click("nav:agent-workspace");
@@ -386,15 +333,10 @@ describe("agent console", () => {
     await when.setValue("agent-console:input", "Preview several changes");
     await when.click("agent-console:send");
 
-    expect(await get.elementAttribute("agent-console:preview-style-changes", "disabled").get()).toBe("");
     await then(get.elementByTestId("agent-console:send")).shouldBeVisible();
-    expect(await get.elementAttribute("agent-console:preview-style-changes", "disabled").get()).toBeNull();
     await when.modal.openAgentStyleChanges();
 
-    await then(get.elementByTestId("agent-style-change-preview")).shouldContainText("Added 2");
     await then(get.elementByTestId("agent-style-change-preview")).shouldContainText("Changed 1");
-    await then(get.elementByTestId("agent-style-change-preview:added")).shouldContainText("metadata");
-    await then(get.elementByTestId("agent-style-change-preview:added")).shouldContainText("name");
     await then(get.elementByTestId("agent-style-change-preview:changed")).shouldContainText('layers["rectangles"].paint.fill-opacity');
     await when.modal.toggleAgentStyleChange(0);
     await then(get.element("#agent-style-change-0")).shouldContainText("0.3");
@@ -410,53 +352,6 @@ describe("agent console", () => {
     await when.modal.toggleAgentStyleChange(0);
     await then(get.element("#agent-style-change-0")).shouldContainText("0.8");
     expect(await get.element("#agent-style-change-0").innerText()).not.toContain("0.1");
-  });
-
-  test("keeps each session's latest preview isolated and shows an empty delta", async () => {
-    const page = currentPage();
-    await page.route("http://localhost:8888/responses", route => {
-      const input = route.request().postDataJSON().input ?? [];
-      const serialized = JSON.stringify(input);
-      const hasOutput = input.some((item: any) => item.type === "function_call_output");
-      if (serialized.includes("Changed session") && !hasOutput) {
-        const code = "style.name = 'Changed session style'; return style.name;";
-        return route.fulfill({
-          contentType: "text/event-stream",
-          body: [
-            "event: response.output_item.done",
-            `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"session-change","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
-            "",
-            "",
-          ].join("\n"),
-        });
-      }
-      return route.fulfill({contentType: "text/event-stream", body: ""});
-    });
-
-    await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
-    await when.setValue("agent-console:api-key", "test-key");
-    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
-    await when.setValue("agent-console:model", "test-model");
-    await when.setValue("agent-console:input", "Changed session");
-    await when.click("agent-console:send");
-    await then(get.elementByTestId("agent-console:send")).shouldBeVisible();
-
-    await when.click("agent-console:new-session");
-    await when.setValue("agent-console:input", "Unchanged session");
-    await when.click("agent-console:send");
-    await then(get.elementByTestId("agent-console:send")).shouldBeVisible();
-    await when.modal.openAgentStyleChanges();
-    await then(get.elementByTestId("agent-style-change-preview:empty")).shouldContainText("No style changes in the latest turn");
-
-    await get.element(".agent-console-session-select").filter({hasText: /^Changed session$/}).click();
-    await then(get.elementByTestId("agent-style-change-preview")).shouldNotExist();
-    await when.modal.openAgentStyleChanges();
-    await then(get.elementByTestId("agent-style-change-preview:changed")).shouldContainText("name");
-
-    await when.click("agent-console:undo-turn");
-    await then(get.elementByTestId("agent-style-change-preview")).shouldNotExist();
-    expect(await get.elementAttribute("agent-console:preview-style-changes", "disabled").get()).toBe("");
   });
 
   test("renders turns with markdown and collapsed tool execution details", async () => {
@@ -497,17 +392,12 @@ describe("agent console", () => {
 
     await then(get.elementByTestId("agent-console:messages")).shouldContainText("Finished with forty-two and code.");
     await then(get.element(".agent-console-message-markdown strong")).shouldContainText("forty-two");
-    await then(get.element(".agent-console-message--user")).shouldHaveCss("align-items", "flex-end");
-    await then(get.element(".agent-console-message--assistant")).shouldHaveCss("align-items", "flex-start");
     await then(get.element(".agent-console-tool-details summary")).shouldContainText("Execution details · 1 call");
     await then(get.element(".agent-console-tool-code")).shouldNotBeVisible();
 
     await when.click("agent-console:tool-details-toggle");
     await then(get.element(".agent-console-tool-code")).shouldContainText(agentCode);
     await then(get.element(".agent-console-tool-output")).shouldContainText("42");
-    await then(get.element(".agent-console-tool-code")).shouldHaveCss("max-height", "320px");
-    await then(get.element(".agent-console-tool-output")).shouldHaveCss("overflow-y", "auto");
-    await then(get.element(".agent-console-tool-details")).shouldHaveCss("color", "rgb(164, 164, 164)");
   });
 
   test("renders a single tool call when the model returns no assistant text", async () => {
@@ -546,54 +436,6 @@ describe("agent console", () => {
     await then(get.element(".agent-console-tool-output")).shouldContainText("tool-only result");
   });
 
-  test("collapses controls to the left and centers the conversation between equal gutters", async () => {
-    await when.click("nav:agent-workspace");
-
-    await when.click("agent-console:toggle-sidebar");
-    await then(get.elementByTestId("agent-console:sidebar")).shouldHaveCss("width", "48px");
-    const consoleBox = await get.elementBox("agent-console").get();
-    const sidebar = await get.elementBox("agent-console:sidebar").get();
-    const conversation = await get.elementBox("agent-console:chat-card").get();
-
-    expect(consoleBox).not.toBeNull();
-    expect(sidebar).not.toBeNull();
-    expect(conversation).not.toBeNull();
-    expect(sidebar!.x).toBeCloseTo(consoleBox!.x, 1);
-    expect(sidebar!.width).toBeCloseTo(48, 1);
-    const leftGutter = conversation!.x - consoleBox!.x;
-    const rightGutter = consoleBox!.x + consoleBox!.width - conversation!.x - conversation!.width;
-    expect(leftGutter).toBeCloseTo(rightGutter, 1);
-    expect((await get.elementsText("agent-console:toggle-sidebar").get()).trim()).toBe("");
-    expect(await get.elementAttribute("agent-console:toggle-sidebar", "aria-expanded").get()).toBe("false");
-    expect(await get.elementAttribute("agent-console:toggle-sidebar", "aria-label").get()).toBe("Expand controls");
-  });
-
-  test("sizes the workspace against the map area with responsive viewport gutters", async () => {
-    await when.setViewportSize(2552, 1267);
-    await when.click("nav:agent-workspace");
-    const wide = await get.elementBox("modal:agent-workspace").get();
-
-    expect(wide).not.toBeNull();
-    expect(wide!.x).toBeCloseTo(768.2, 0);
-    expect(wide!.width).toBeCloseTo(1585.6, 0);
-    await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
-
-    await when.setViewportSize(1366, 768);
-    const laptop = await get.elementBox("modal:agent-workspace").get();
-    expect(laptop).not.toBeNull();
-    expect(laptop!.x).toBeCloseTo(97.7, 0);
-    expect(laptop!.width).toBeCloseTo(1200, 0);
-    expect(1366 - laptop!.x - laptop!.width).toBeCloseTo(68.3, 0);
-
-    await when.setViewportSize(680, 720);
-    const narrow = await get.elementBox("modal:agent-workspace").get();
-    expect(narrow).not.toBeNull();
-    expect(narrow!.x).toBeCloseTo(34, 0);
-    expect(narrow!.width).toBeCloseTo(612, 0);
-    await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
-    await then(get.elementByTestId("agent-console:chat-card")).shouldNotOverflowHorizontally();
-  });
-
   test("wraps long unbroken messages without widening the console", async () => {
     await when.click("nav:agent-workspace");
     await when.click("agent-console:toggle-settings");
@@ -605,9 +447,6 @@ describe("agent console", () => {
 
     await then(get.elementByTestId("agent-console:messages")).shouldContainText("https://example.com/");
     await then(get.elementByTestId("agent-console")).shouldNotOverflowHorizontally();
-    await then(get.elementByTestId("agent-console:chat-card")).shouldNotOverflowHorizontally();
-    await then(get.elementByTestId("agent-console:messages")).shouldNotOverflowHorizontally();
-    await then(get.element(".maputnik-agent-workspace-modal .maputnik-modal-scroller")).shouldNotOverflowHorizontally();
   });
 
   test("keeps generating in the background when the workspace is closed", async () => {

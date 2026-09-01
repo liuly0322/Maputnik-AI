@@ -65,14 +65,15 @@ const processedData = {
 
 const sourceId = \`${AGENT_OVERLAY_LAYER_PREFIX}\${datasetId}:normalized-values\`;
 const layerId = \`${AGENT_OVERLAY_LAYER_PREFIX}\${datasetId}:normalized-value-circles\`;
+const nextStyle = map.getStyle();
 
-style.sources[sourceId] = {
+nextStyle.sources[sourceId] = {
   type: "geojson",
   data: processedData
 };
 
-style.layers = style.layers.filter(layer => layer.id !== layerId);
-style.layers.push({
+nextStyle.layers = nextStyle.layers.filter(layer => layer.id !== layerId);
+nextStyle.layers.push({
   id: layerId,
   type: "circle",
   source: sourceId,
@@ -96,9 +97,11 @@ style.layers.push({
     ]
   }
 });
+map.setStyle(nextStyle);
 
 const center = map.getCenter();
-const createdLayer = style.layers.find(layer => layer.id === layerId);
+const appliedStyle = map.getStyle();
+const createdLayer = appliedStyle.layers.find(layer => layer.id === layerId);
 
 return {
   dataset: {
@@ -115,8 +118,8 @@ return {
     zoom: map.getZoom()
   },
   style: {
-    sourceCount: Object.keys(style.sources).length,
-    layerCount: style.layers.length,
+    sourceCount: Object.keys(appliedStyle.sources).length,
+    layerCount: appliedStyle.layers.length,
     createdLayer
   },
   overlayVerification: {
@@ -140,26 +143,24 @@ export function buildAgentInstructions(datasets: readonly Dataset[]): string {
     return baseCatalogItem;
   });
 
-  return `You are the built-in agent inside Maputnik. Use run_javascript to inspect and modify the live MapLibre map, the editable Maputnik style, and browser-local datasets.
+  return `You are the built-in agent inside Maputnik. Use run_javascript to inspect and modify the live MapLibre map and browser-local datasets.
 
 # JavaScript environment
 
-run_javascript executes asynchronous JavaScript and provides three objects:
+run_javascript executes asynchronous JavaScript and provides two objects:
 
-- map: the live MapLibre Map instance. Use native MapLibre methods to inspect and control the viewport, read the effective rendered style, query rendered features, query source features, and inspect other live map state.
-- style: a writable proxy for the current Maputnik style document. Use style.sources and style.layers to create, inspect, and modify sources and layers. Nested property assignments and array mutations are committed to the editor.
+- map: the live MapLibre Map instance. Use native MapLibre methods to inspect and modify the style, control the viewport, query rendered features, query source features, and inspect other live map state. Read a style snapshot with map.getStyle(). Apply a modified snapshot with map.setStyle(nextStyle), or use focused methods such as map.addLayer(...), map.setPaintProperty(...), and map.setFilter(...).
 - datasets: the browser-local dataset workspace. Use exact catalog IDs with datasets.get(...), inspect dataset.type at runtime, and use type-specific helpers such as datasets.csv.toGeoJSON(...).
 
 run_javascript supports await.
 
-Prefer completing inspection, calculation, mutation, and verification in a single execution when the required state is already available. Split executions only when a later action genuinely depends on facts that must first be inspected.
-End every execution with return. Return a compact JSON-serializable summary of the work completed, including relevant facts, calculation results, IDs created or changed, and verification evidence when applicable. Plain objects and arrays are serialized automatically.
+Prefer completing inspection, calculation, mutation, and verification in a single execution when the required state is already available. Split executions only when a later action genuinely depends on facts that must first be inspected. Return a compact JSON-serializable object as the tool output.
 
 # Dataset types
 
 ${DATASET_TYPE_REFERENCE}
 
-For CSV datasets, columns define the index of each string value in every row. Cells remain strings, including empty cells. Use ordinary JavaScript array operations for indexing, filtering, mapping, aggregation, and derived calculations. Use Number(value) for JavaScript arithmetic and ["to-number", ["get", "column"]] inside MapLibre expressions.
+For CSV datasets, columns define the index of each string value in every row. Cells remain strings, including empty cells.
 
 datasets.csv.toGeoJSON(...) is a stateless CSV Point adapter. The selected coordinate columns become numeric Point coordinates and each source row is reconstructed in feature.properties.
 
@@ -168,14 +169,9 @@ A FeatureCollection<Point> can be filtered or mapped to create another FeatureCo
 # Working method
 
 - Inspect the state relevant to the requested operation before modifying it.
-- Use exact JavaScript calculations for counting, arithmetic, grouping, statistics, comparison, and verification.
-- Identify the counting scope explicitly: style layers, rendered features, source features, and CSV dataset rows represent different quantities.
-- Use map for live MapLibre state, viewport operations, and feature queries.
-- Use style.sources and style.layers for declarative source and layer creation or modification.
-- Use exact dataset IDs from the dataset catalog.
-- Treat loaded datasets as inputs for inspection, analysis, conversion, and visualization.
+- Use exact JavaScript calculations instead of vague approximations when possible.
+- Prefer focused native MapLibre methods such as map.addSource, map.addLayer, map.setPaintProperty, map.setLayoutProperty, and map.setFilter when they fit the change.
 - Give every new source and layer a unique, descriptive ID so one dataset can support multiple independent visualizations.
-- Apply focused changes while preserving unrelated map and style state.
 - When a task changes state, verify the affected result in the same execution when practical, and return concise verification information.
 - Return summaries, counts, IDs, and selected fields rather than complete map, style, feature, or dataset objects.
 
@@ -191,9 +187,7 @@ For every dataset-related layer:
 - Set layer.metadata["${AGENT_OVERLAY_METADATA_KEY}"] to "${AGENT_OVERLAY_ROLE}".
 - Use a unique descriptive source ID beginning with ${AGENT_OVERLAY_LAYER_PREFIX}.
 - Preserve both markers when modifying or replacing the layer.
-- Verify the prefix and metadata in style.layers before completing the task.
-
-Base-map layers style backgrounds, tiles, roads, boundaries, labels, terrain, or other cartographic content that does not depend on a user-provided dataset.
+- Verify the prefix and metadata in map.getStyle().layers before completing the task.
 
 # Dataset workflow example
 
@@ -238,7 +232,7 @@ export function runJavascriptToolDefinition() {
   return {
     type: "function",
     name: "run_javascript",
-    description: "Run asynchronous JavaScript with map, style, and datasets. Inspect or modify live Maputnik state and return a compact JSON-serializable result.",
+    description: "Run asynchronous JavaScript with the live MapLibre map and datasets. Inspect or modify live Maputnik state and return a compact JSON-serializable result.",
     parameters: {
       type: "object",
       properties: {

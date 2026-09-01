@@ -30,8 +30,8 @@ import {AgentConsoleSidebar} from "./AgentConsoleSidebar";
 
 type AgentConsoleInternalProps = {
   getMap(): MapLibreMap | null;
-  getStyle(): StyleSpecification;
-  setStyle(style: StyleSpecification): void;
+  getMaputnikStyle(): StyleSpecification;
+  updateMaputnikStyle(style: StyleSpecification): void;
   datasetStore: DatasetStore;
   onOpenData(): void;
   renderer: "mlgljs" | "ol";
@@ -177,8 +177,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   buildExecutionContext = (): AgentExecutionContext => {
     return createAgentExecutionContext({
       getMap: this.props.getMap,
-      getStyle: this.props.getStyle,
-      setStyle: this.props.setStyle,
+      updateMaputnikStyle: this.props.updateMaputnikStyle,
       datasets: createDatasetWorkspace(this.props.datasetStore),
     });
   };
@@ -328,7 +327,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       if (!session) return;
 
       const updatedAt = Date.now();
-      const styleCheckpoint = cloneDeep(this.props.getStyle());
+      const styleCheckpoint = cloneDeep(this.props.getMaputnikStyle());
       const checkpointSession = {
         ...session,
         updatedAt,
@@ -402,7 +401,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     if (!session?.styleCheckpoint) return;
 
     try {
-      this.props.setStyle(cloneDeep(session.styleCheckpoint));
+      this.props.updateMaputnikStyle(cloneDeep(session.styleCheckpoint));
       this.setState({
         error: undefined,
         notice: this.props.t("The latest saved style for this conversation has been loaded."),
@@ -426,7 +425,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const styleBefore = this.turnUndoStyles.get(sessionId);
     if (!session || !styleBefore) return;
 
-    const currentStyle = cloneDeep(this.props.getStyle());
+    const currentStyle = cloneDeep(this.props.getMaputnikStyle());
     if (!session.styleCheckpoint || !isEqual(currentStyle, session.styleCheckpoint)) {
       this.setState({
         notice: undefined,
@@ -450,9 +449,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     };
 
     try {
-      this.props.setStyle(cloneDeep(styleBefore));
+      this.props.updateMaputnikStyle(cloneDeep(styleBefore));
       if (!await this.persistSession(undoneSession)) {
-        this.props.setStyle(currentStyle);
+        this.props.updateMaputnikStyle(currentStyle);
         return;
       }
       if (!this.mounted) return;
@@ -510,7 +509,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const activeSession = sessions.find(session => session.id === activeSessionId);
     const turnSessionId = activeSession?.id ?? generateId();
     this.previewReadySessionIds.delete(turnSessionId);
-    this.turnUndoStyles.set(turnSessionId, createAgentTurnUndoStyle(this.props.getStyle()));
+    this.turnUndoStyles.set(turnSessionId, createAgentTurnUndoStyle(this.props.getMaputnikStyle()));
 
     if (activeSession) {
       sessions = updateSession(sessions, activeSession.id, {

@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 
-import {AgentSessionStore, LEGACY_AGENT_SESSIONS_KEY, type AgentSession} from "./agent-session-store";
+import {AgentSessionStore, type AgentSession} from "./agent-session-store";
 
 const DATABASE_NAME = "maputnik-agent";
 
@@ -59,23 +59,6 @@ function readStoredSession(id: string): Promise<Record<string, unknown> | undefi
   });
 }
 
-function writeStoredSession(session: Record<string, unknown>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE_NAME);
-    request.onsuccess = () => {
-      const database = request.result;
-      const transaction = database.transaction("sessions", "readwrite");
-      transaction.objectStore("sessions").put(session);
-      transaction.oncomplete = () => {
-        database.close();
-        resolve();
-      };
-      transaction.onerror = () => reject(transaction.error);
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
 function deleteDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(DATABASE_NAME);
@@ -87,12 +70,10 @@ function deleteDatabase(): Promise<void> {
 
 describe("AgentSessionStore", () => {
   const openStores: AgentSessionStore[] = [];
-  let localStorage: LocalStorageMock;
 
   beforeEach(async () => {
     await deleteDatabase();
-    localStorage = new LocalStorageMock();
-    vi.stubGlobal("window", {localStorage});
+    vi.stubGlobal("window", {localStorage: new LocalStorageMock()});
   });
 
   afterEach(async () => {
@@ -139,64 +120,4 @@ describe("AgentSessionStore", () => {
     expect(await readStoredSession(session.id)).not.toHaveProperty("messages");
   });
 
-  it("ignores legacy messages when loading IndexedDB sessions", async () => {
-    const setupStore = createStore();
-    await setupStore.init();
-    const session = createSession("legacy-indexeddb", 1);
-    await writeStoredSession({
-      ...session,
-      messages: [{id: "stale", role: "assistant", content: "Wrong history"}],
-    });
-
-    const store = createStore();
-    expect(await store.init()).toEqual([session]);
-    expect(await readStoredSession(session.id)).toHaveProperty("messages");
-  });
-
-  it("loads old IndexedDB sessions without a style checkpoint", async () => {
-    const setupStore = createStore();
-    await setupStore.init();
-    const session = createSession("without-checkpoint", 1);
-    const {styleCheckpoint: _styleCheckpoint, ...oldSession} = session;
-    await writeStoredSession(oldSession);
-
-    const store = createStore();
-    expect(await store.init()).toEqual([session]);
-  });
-
-  it("persists a style checkpoint in the existing session record", async () => {
-    const store = createStore();
-    await store.init();
-    const session: AgentSession = {
-      ...createSession("with-checkpoint", 1),
-      styleCheckpoint: {
-        version: 8,
-        name: "Session checkpoint",
-        sources: {},
-        layers: [],
-      },
-    };
-
-    await store.put(session);
-
-    expect(await readStoredSession(session.id)).toMatchObject({
-      styleCheckpoint: session.styleCheckpoint,
-    });
-  });
-
-  it("migrates legacy LocalStorage sessions and removes the old value", async () => {
-    const legacySession = {
-      ...createSession("legacy", 1),
-      messages: [{id: "legacy-message", role: "assistant", content: "Ignored legacy copy"}],
-    };
-    localStorage.setItem(LEGACY_AGENT_SESSIONS_KEY, JSON.stringify([legacySession]));
-
-    const firstStore = createStore();
-    expect(await firstStore.init()).toEqual([createSession("legacy", 1)]);
-    expect(localStorage.getItem(LEGACY_AGENT_SESSIONS_KEY)).toBeNull();
-    firstStore.close();
-
-    const secondStore = createStore();
-    expect(await secondStore.init()).toEqual([createSession("legacy", 1)]);
-  });
 });

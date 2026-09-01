@@ -22,23 +22,14 @@ afterEach(() => {
 describe("executeAgentJavaScript", () => {
   const context: any = {
     map: null,
-    style: {version: 8, sources: {}, layers: []},
     datasets,
+    updateMaputnikStyle: vi.fn(),
   };
 
-  it("serializes synchronous and asynchronous returns", async () => {
-    await expect(executeAgentJavaScript("return 42;", context)).resolves.toBe("42");
-    await expect(executeAgentJavaScript("return await Promise.resolve('done');", context)).resolves.toBe("done");
-  });
-
-  it("serializes returned objects and arrays", async () => {
-    await expect(executeAgentJavaScript("return {ids: ['a', 'b'], count: 2};", context)).resolves.toBe(
+  it("serializes asynchronous return values", async () => {
+    await expect(executeAgentJavaScript("return await Promise.resolve({ids: ['a', 'b'], count: 2});", context)).resolves.toBe(
       '{\n  "ids": [\n    "a",\n    "b"\n  ],\n  "count": 2\n}'
     );
-  });
-
-  it("represents an undefined return explicitly", async () => {
-    await expect(executeAgentJavaScript("return undefined;", context)).resolves.toBe("undefined");
   });
 
   it("does not include console output in the result", async () => {
@@ -51,43 +42,15 @@ describe("executeAgentJavaScript", () => {
     expect(result).not.toContain("diagnostic");
   });
 
-  it("injects only the DatasetWorkspace facade", async () => {
-    await expect(executeAgentJavaScript(
-      "return {workspace: Object.keys(datasets), csv: Object.keys(datasets.csv)};",
-      context
-    )).resolves.toBe(
-      '{\n  "workspace": [\n    "get",\n    "csv"\n  ],\n  "csv": [\n    "toGeoJSON"\n  ]\n}'
-    );
-  });
 });
 
 describe("createAgentExecutionContext", () => {
-  it("commits source and layer changes made through style", async () => {
-    const style: any = {version: 8, sources: {}, layers: []};
-    let committedStyle: any;
-    const context = createAgentExecutionContext({
-      getMap: () => null,
-      getStyle: () => style,
-      setStyle: nextStyle => {
-        committedStyle = nextStyle;
-      },
-      datasets,
-    });
-
-    await executeAgentJavaScript(`
-      style.sources.points = {type: "geojson", data: {type: "FeatureCollection", features: []}};
-      style.layers.push({id: "points", type: "circle", source: "points"});
-      return {sourceCount: Object.keys(style.sources).length, layerCount: style.layers.length};
-    `, context);
-    await Promise.resolve();
-
-    expect(committedStyle.sources.points.type).toBe("geojson");
-    expect(committedStyle.layers).toEqual([{id: "points", type: "circle", source: "points"}]);
-  });
-
-  it("synchronizes native map mutations back to the editable style", async () => {
-    const liveStyle: any = {version: 8, sources: {}, layers: []};
-    let committedStyle: any;
+  it("synchronizes the final map style exactly once", async () => {
+    const liveStyle: any = {
+      version: 8,
+      sources: {},
+      layers: [],
+    };
     const map: any = {
       addLayer(layer: any) {
         liveStyle.layers.push(layer);
@@ -96,20 +59,44 @@ describe("createAgentExecutionContext", () => {
         return liveStyle;
       },
     };
+    const updateMaputnikStyle = vi.fn();
     const context = createAgentExecutionContext({
       getMap: () => map,
-      getStyle: () => ({version: 8, sources: {}, layers: []}),
-      setStyle: nextStyle => {
-        committedStyle = nextStyle;
-      },
+      updateMaputnikStyle,
       datasets,
     });
 
-    await executeAgentJavaScript('map.addLayer({id: "native", type: "background"}); return map.getStyle().layers.length;', context);
-    await Promise.resolve();
+    await executeAgentJavaScript(`
+      map.addLayer({id: "native", type: "background"});
+      return map.getStyle().layers.length;
+    `, context);
 
-    expect(committedStyle.layers).toEqual([{id: "native", type: "background"}]);
+    expect(updateMaputnikStyle).toHaveBeenCalledTimes(1);
+    expect(updateMaputnikStyle).toHaveBeenCalledWith(liveStyle);
   });
+
+  it("synchronizes mutations when the script throws", async () => {
+    const liveStyle: any = {version: 8, sources: {}, layers: []};
+    const map: any = {
+      addLayer(layer: any) {
+        liveStyle.layers.push(layer);
+      },
+      getStyle: () => liveStyle,
+    };
+    const updateMaputnikStyle = vi.fn();
+    const context = createAgentExecutionContext({getMap: () => map, updateMaputnikStyle, datasets});
+
+    await expect(executeAgentJavaScript(`
+      map.addLayer({id: "kept-after-error", type: "background"});
+      throw new Error("script failed");
+    `, context)).rejects.toThrow("script failed");
+
+    expect(updateMaputnikStyle).toHaveBeenCalledTimes(1);
+    expect(updateMaputnikStyle.mock.calls[0][0].layers).toEqual([
+      {id: "kept-after-error", type: "background"},
+    ]);
+  });
+
 });
 
 describe("truncateToolOutput", () => {

@@ -100,6 +100,8 @@ type AppState = {
   fileHandle: FileSystemFileHandle | null
 };
 
+type StyleSpecificationWithOptionalId = StyleSpecification & {id?: string};
+
 export class App extends React.Component<any, AppState> {
   revisionStore: RevisionStore;
   styleStore: IStyleStore | null = null;
@@ -160,10 +162,10 @@ export class App extends React.Component<any, AppState> {
 
   getAgentMap = () => this.mapInstance;
 
-  getAgentStyle = (): StyleSpecification => cloneDeep(this.state.mapStyle);
+  getAgentMaputnikStyle = (): StyleSpecification => cloneDeep(this.state.mapStyle);
 
-  setAgentStyle = (style: StyleSpecification) => {
-    this.onStyleChanged(style as StyleSpecificationWithId);
+  updateAgentMaputnikStyle = (style: StyleSpecification) => {
+    this.onStyleChanged(style);
   };
 
   onMapLoaded = (map: Map) => {
@@ -333,7 +335,11 @@ export class App extends React.Component<any, AppState> {
     this.onStyleChanged(changedStyle);
   };
 
-  onStyleChanged = (newStyle: StyleSpecificationWithId, opts: OnStyleChangedOpts={}): void => {
+  onStyleChanged = (newStyle_: StyleSpecificationWithOptionalId, opts: OnStyleChangedOpts={}): void => {
+    const newStyle: StyleSpecificationWithId = {
+      ...newStyle_,
+      id: newStyle_.id ?? this.state.mapStyle.id,
+    };
     opts = {
       save: true,
       addRevision: true,
@@ -988,8 +994,8 @@ export class App extends React.Component<any, AppState> {
         isOpen={this.state.isOpen.agentConsole}
         onOpenToggle={() => this.toggleModal("agentConsole")}
         getMap={this.getAgentMap}
-        getStyle={this.getAgentStyle}
-        setStyle={this.setAgentStyle}
+        getMaputnikStyle={this.getAgentMaputnikStyle}
+        updateMaputnikStyle={this.updateAgentMaputnikStyle}
         datasetStore={this.datasetStore}
         onDatasetsChange={this.onDatasetsChange}
         renderer={this._getRenderer()}

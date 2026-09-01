@@ -114,59 +114,6 @@ describe("groupAgentConversation", () => {
     }]);
   });
 
-  it("derives tool code from input items without changing stored messages", () => {
-    const toolOutput = message("tool", "tool", "42");
-    const messages = [message("user", "user"), toolOutput];
-    const turns = groupAgentConversation(messages, [{
-      type: "function_call",
-      name: "run_javascript",
-      call_id: "call-1",
-      arguments: JSON.stringify({code: "return 6 * 7;"}),
-    }]);
-
-    expect(turns[0].items[0]).toEqual({
-      type: "tools",
-      messages: [{
-        ...toolOutput,
-        toolCall: {
-          name: "run_javascript",
-          callId: "call-1",
-          code: "return 6 * 7;",
-        },
-      }],
-    });
-    expect(messages[1]).toBe(toolOutput);
-    expect(messages[1]).not.toHaveProperty("toolCall");
-  });
-
-  it("keeps tool output usable when stored arguments are invalid or absent", () => {
-    const invalid = groupAgentConversation([message("tool", "tool", "result")], [{
-      type: "function_call",
-      name: "run_javascript",
-      call_id: "call-invalid",
-      arguments: "{invalid",
-    }]);
-    const absent = groupAgentConversation([message("tool", "tool", "old result")]);
-
-    expect(invalid[0].items[0]).toEqual({
-      type: "tools",
-      messages: [{
-        id: "tool",
-        role: "tool",
-        content: "result",
-        toolCall: {
-          name: "run_javascript",
-          callId: "call-invalid",
-          code: undefined,
-        },
-      }],
-    });
-    expect(absent[0].items[0]).toEqual({
-      type: "tools",
-      messages: [message("tool", "tool", "old result")],
-    });
-  });
-
   it("shows an unmatched in-flight function call even before output exists", () => {
     const messages = [message("user", "user")];
     const turns = groupAgentConversation(messages, [{

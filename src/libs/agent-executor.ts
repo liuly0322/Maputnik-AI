@@ -1,17 +1,15 @@
 import type {Map, StyleSpecification} from "maplibre-gl";
 import type {DatasetWorkspace} from "./dataset";
-import {createBatchScheduler, createMapProxy, createStyleProxy} from "./agent-proxies";
 
 export type AgentExecutionContext = {
   map: Map | null;
-  style: StyleSpecification;
   datasets: DatasetWorkspace;
+  updateMaputnikStyle(style: StyleSpecification): void;
 };
 
 export type AgentExecutionContextFactoryArgs = {
   getMap(): Map | null;
-  getStyle(): StyleSpecification;
-  setStyle(style: StyleSpecification): void;
+  updateMaputnikStyle(style: StyleSpecification): void;
   datasets: DatasetWorkspace;
 };
 
@@ -105,35 +103,29 @@ function sanitizeStyle(style: StyleSpecification): StyleSpecification {
 export function createAgentExecutionContext(
   args: AgentExecutionContextFactoryArgs
 ): AgentExecutionContext {
-  const scheduleMapStyleSync = createBatchScheduler(() => {
-    const map = args.getMap();
-    const style = map ? map.getStyle() : args.getStyle();
-    args.setStyle(sanitizeStyle(style));
-  });
-  const style = args.getStyle();
-  const scheduleStyleCommit = createBatchScheduler(() => {
-    args.setStyle(sanitizeStyle(style));
-  });
-  const map = args.getMap();
-
   return {
-    map: map ? createMapProxy(map, scheduleMapStyleSync) : null,
-    style: createStyleProxy(style, scheduleStyleCommit),
+    map: args.getMap(),
     datasets: args.datasets,
+    updateMaputnikStyle: args.updateMaputnikStyle,
   };
 }
 
 export async function executeAgentJavaScript(code: string, context: AgentExecutionContext) {
   const execute = new Function(
     "map",
-    "style",
     "datasets",
     `return (async () => {\n${code}\n})();`
   );
-  const result = await execute(
-    context.map,
-    context.style,
-    context.datasets
-  );
-  return stringifyResult(result);
+  try {
+    const result = await execute(
+      context.map,
+      context.datasets
+    );
+    return stringifyResult(result);
+  }
+  finally {
+    if (context.map) {
+      context.updateMaputnikStyle(sanitizeStyle(context.map.getStyle()));
+    }
+  }
 }

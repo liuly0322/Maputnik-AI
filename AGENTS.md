@@ -12,10 +12,9 @@ ideas such as DuckDB, spatial analysis engines, or a sandboxed runtime as implem
   image attachments, local settings, and conversation sessions.
 - `src/libs/agent-client.ts` builds stable agent instructions and appends metadata
   for every loaded browser-local dataset.
-- `src/libs/agent-executor.ts` executes model-generated JavaScript with only `map`,
-  `style`, and `datasets` in scope. Tool output comes only from the return value.
-- `src/libs/agent-proxies.ts` keeps native MapLibre mutations and writable style
-  proxy mutations synchronized with the live Maputnik style.
+- `src/libs/agent-executor.ts` executes model-generated JavaScript with only the
+  live `map` and `datasets` in scope. Tool output comes only from the return value;
+  the final live map style is synchronized back to Maputnik after every execution.
 - `src/libs/dataset.ts` and `src/libs/dataset-store.ts` parse CSV files and persist
   datasets in IndexedDB. Geometry conversion currently supports points only.
 - `src/libs/agent-overlay.ts` owns the shared dataset-overlay markers used by the

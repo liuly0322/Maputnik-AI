@@ -12,8 +12,8 @@ type ModalAgentWorkspaceInternalProps = {
   isOpen: boolean;
   onOpenToggle(): void;
   getMap(): Map | null;
-  getStyle(): StyleSpecification;
-  setStyle(style: StyleSpecification): void;
+  getMaputnikStyle(): StyleSpecification;
+  updateMaputnikStyle(style: StyleSpecification): void;
   datasetStore: DatasetStore;
   onDatasetsChange(): void;
   renderer: "mlgljs" | "ol";
@@ -132,8 +132,8 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
             <div className={`agent-workspace-view ${this.state.view === "chat" ? "agent-workspace-view--active" : ""}`}>
               <AgentConsole
                 getMap={this.props.getMap}
-                getStyle={this.props.getStyle}
-                setStyle={this.props.setStyle}
+                getMaputnikStyle={this.props.getMaputnikStyle}
+                updateMaputnikStyle={this.props.updateMaputnikStyle}
                 datasetStore={this.props.datasetStore}
                 onOpenData={() => this.setState({view: "data"})}
                 renderer={this.props.renderer}
@@ -149,7 +149,7 @@ class ModalAgentWorkspaceInternal extends React.Component<ModalAgentWorkspaceInt
               <AgentExportPanel
                 map={this.props.getMap()}
                 renderer={this.props.renderer}
-                styleName={this.props.getStyle().name ?? "maputnik"}
+                styleName={this.props.getMaputnikStyle().name ?? "maputnik"}
               />
             </div>
           </div>
