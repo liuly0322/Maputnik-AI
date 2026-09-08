@@ -1,142 +1,57 @@
 import {describe, expect, it} from "vitest";
+import {extractMessageImages, extractMessageText, groupAgentConversation} from "./agent-conversation";
 
-import {createChatMessages, groupAgentConversation, type ChatMessage} from "./agent-conversation";
-
-function message(id: string, role: ChatMessage["role"], content = id): ChatMessage {
-  return {id, role, content};
-}
+const message = (role: string, text: string) => ({type: "message", role, content: [{type: "output_text", text}]});
+const call = (id: string) => ({type: "function_call", call_id: id, name: "run_javascript", arguments: "{}"});
+const output = (id: string) => ({type: "function_call_output", call_id: id, output: "42"});
 
 describe("groupAgentConversation", () => {
-  it("restores display messages from input items", () => {
-    const inputItems = [{
-      type: "message",
-      role: "user",
-      content: [
-        {type: "input_text", text: "Show this image"},
-        {type: "input_image", image_url: "data:image/png;base64,image"},
-      ],
-    }, {
-      id: "assistant-1",
-      type: "message",
-      role: "assistant",
-      content: [{type: "output_text", text: "I will inspect it."}],
-    }, {
-      type: "function_call",
-      name: "run_javascript",
-      call_id: "call-1",
-      arguments: JSON.stringify({code: "return map.getZoom();"}),
-    }, {
-      type: "function_call_output",
-      call_id: "call-1",
-      output: "12",
-    }];
-
-    const messages = createChatMessages(inputItems);
-    expect(messages).toEqual([{
-      id: "input-item-0",
-      role: "user",
-      content: "Show this image",
-      images: ["data:image/png;base64,image"],
-    }, {
-      id: "input-item-assistant-1",
-      role: "assistant",
-      content: "I will inspect it.",
-    }, {
-      id: "input-item-call-1-output",
-      role: "tool",
-      content: "12",
-      callId: "call-1",
-    }]);
-    expect(groupAgentConversation(messages, inputItems)[0].items).toEqual([{
-      type: "assistant",
-      message: messages[1],
-      tools: [{
-        ...messages[2],
-        toolCall: {
-          name: "run_javascript",
-          callId: "call-1",
-          code: "return map.getZoom();",
-        },
-      }],
-    }]);
+  it("keeps original user items including images", () => {
+    const user = {type: "message", role: "user", content: [
+      {type: "input_text", text: "Inspect this"},
+      {type: "input_image", image_url: "data:image/png;base64,image"},
+    ]};
+    const turns = groupAgentConversation([user]);
+    expect(turns[0].user).toBe(user);
+    expect(extractMessageText(user)).toBe("Inspect this");
+    expect(extractMessageImages(user)).toEqual(["data:image/png;base64,image"]);
   });
 
-  it("groups messages into user turns", () => {
+  it("groups user turns and assistant rounds without copying protocol items", () => {
+    const user = message("user", "question");
+    const assistant = message("assistant", "working");
+    const first = call("first");
+    const second = call("second");
+    const firstOutput = output("first");
+    const secondOutput = output("second");
+    const progress = message("assistant", "progress");
     const turns = groupAgentConversation([
-      message("user-1", "user"),
-      message("assistant-1", "assistant"),
-      message("user-2", "user"),
-      message("assistant-2", "assistant"),
+      user, assistant, first, second, secondOutput, firstOutput, progress, message("user", "next"),
     ]);
-
     expect(turns).toHaveLength(2);
-    expect(turns[0].user?.id).toBe("user-1");
-    expect(turns[0].items).toEqual([{
-      type: "assistant",
-      message: message("assistant-1", "assistant"),
-      tools: [],
-    }]);
-    expect(turns[1].user?.id).toBe("user-2");
-  });
-
-  it("uses assistant text as the boundary for tool-call groups", () => {
-    const firstTool = message("tool-1", "tool");
-    const secondTool = message("tool-2", "tool");
-    const turns = groupAgentConversation([
-      message("user", "user"),
-      message("preface", "assistant"),
-      firstTool,
-      message("progress", "assistant"),
-      secondTool,
-      message("answer", "assistant"),
-    ]);
-
     expect(turns[0].items).toEqual([
-      {type: "assistant", message: message("preface", "assistant"), tools: [firstTool]},
-      {type: "assistant", message: message("progress", "assistant"), tools: [secondTool]},
-      {type: "assistant", message: message("answer", "assistant"), tools: []},
+      {type: "assistant", id: "input-item-1", message: assistant, tools: [
+        {id: "input-item-2", call: first, output: firstOutput},
+        {id: "input-item-3", call: second, output: secondOutput},
+      ]},
+      {type: "assistant", id: "input-item-6", message: progress, tools: []},
     ]);
+    expect(turns[0].items[0].tools[0].call).toBe(first);
+    expect(turns[0].items[0].tools[0].output).toBe(firstOutput);
   });
 
-  it("groups consecutive tools under the preceding assistant text", () => {
-    const firstTool = message("tool-1", "tool");
-    const secondTool = message("tool-2", "tool");
-    const turns = groupAgentConversation([
-      message("assistant", "assistant"),
-      firstTool,
-      secondTool,
+  it("keeps pending tools in their original turn", () => {
+    const pending = call("pending");
+    const items = [message("user", "first"), pending, message("user", "second")];
+    expect(groupAgentConversation(items, true)[0].items).toEqual([
+      {type: "tools", tools: [{id: "input-item-1", call: pending, output: undefined}]},
     ]);
-
-    expect(turns[0].items).toEqual([{
-      type: "assistant",
-      message: message("assistant", "assistant"),
-      tools: [firstTool, secondTool],
-    }]);
+    expect(groupAgentConversation(items)[0].items).toEqual([]);
   });
 
-  it("shows an unmatched in-flight function call even before output exists", () => {
-    const messages = [message("user", "user")];
-    const turns = groupAgentConversation(messages, [{
-      type: "function_call",
-      name: "run_javascript",
-      call_id: "call-pending",
-      arguments: JSON.stringify({code: "return 42;"}),
-    }], true);
-
-    expect(turns[0].items).toEqual([{
-      type: "tools",
-      messages: [{
-        id: "pending-tool-call-pending",
-        role: "tool",
-        content: "",
-        toolCall: {
-          name: "run_javascript",
-          callId: "call-pending",
-          code: "return 42;",
-        },
-        toolPending: true,
-      }],
-    }]);
-    expect(messages).toEqual([message("user", "user")]);
+  it("preserves orphan outputs and ignores non-display items", () => {
+    const orphan = output("orphan");
+    expect(groupAgentConversation([{type: "reasoning", encrypted_content: "opaque"}, orphan])[0].items)
+      .toEqual([{type: "tools", tools: [{id: "input-item-1", output: orphan}]}]);
   });
 });

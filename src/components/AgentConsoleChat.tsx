@@ -3,13 +3,13 @@ import type {TFunction} from "i18next";
 import type {StyleSpecification} from "maplibre-gl";
 import {MdCompareArrows, MdRestore, MdUndo} from "react-icons/md";
 
-import type {AgentConsoleSession} from "../libs/agent-conversation";
+import type {AgentSession} from "../libs/agent-session-store";
 import {AgentConversation} from "./AgentConversation";
 import {AgentStyleChangePreview} from "./AgentStyleChangePreview";
 
 type AgentConsoleChatProps = {
   t: TFunction;
-  session?: AgentConsoleSession;
+  session?: AgentSession;
   busy: boolean;
   canUndo: boolean;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -66,6 +66,7 @@ export function AgentConsoleChat(props: AgentConsoleChatProps) {
     </header>
     <div className="agent-console-chat-body">
       <AgentConversation
+        key={props.session?.id}
         session={props.session}
         busy={props.busy}
         messagesEndRef={props.messagesEndRef}

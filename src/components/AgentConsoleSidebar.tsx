@@ -1,7 +1,7 @@
 import type {TFunction} from "i18next";
 import {MdAdd, MdChevronLeft, MdChevronRight, MdDelete} from "react-icons/md";
 
-import type {AgentConsoleSession} from "../libs/agent-conversation";
+import type {AgentSession} from "../libs/agent-session-store";
 import type {Dataset} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 
@@ -15,7 +15,7 @@ type AgentConsoleSidebarProps = {
     model: string;
   };
   mapStatus: string;
-  sessions: AgentConsoleSession[];
+  sessions: AgentSession[];
   sessionsReady: boolean;
   activeSessionId: string | null;
   datasetStore: DatasetStore;

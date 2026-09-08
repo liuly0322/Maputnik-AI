@@ -4,117 +4,81 @@ import {
   type AgentInputItem,
   type AgentSettings,
 } from "./agent-client";
-import type {ChatMessage} from "./agent-conversation";
 import {
   executeAgentJavaScript,
-  stringifyResult,
   truncateToolOutput,
   type AgentExecutionContext,
 } from "./agent-executor";
 
-const MAX_TOOL_ROUNDS = 20;
+export const MAX_TOOL_ROUNDS = 20;
 
 type AgentResponseRunnerOptions = {
   settings: AgentSettings;
   instructions: string;
   initialInputItems: AgentInputItem[];
-  initialMessages: ChatMessage[];
   signal: AbortSignal;
   createExecutionContext(): AgentExecutionContext;
-  generateId(): string;
-  onMessagesChange(messages: ChatMessage[]): void;
-  onInputItemsChange(inputItems: AgentInputItem[], messages: ChatMessage[]): Promise<void>;
+  onItemsChange(inputItems: AgentInputItem[], options: {persist: boolean}): Promise<void>;
 };
-
-function extractAssistantText(item: Record<string, any>) {
-  if (Array.isArray(item.content)) {
-    return item.content
-      .map((part: any) => part.text ?? part.output_text ?? "")
-      .filter(Boolean)
-      .join("\n");
-  }
-  return typeof item.content === "string" ? item.content : stringifyResult(item.content);
-}
 
 export async function runAgentResponseLoop(options: AgentResponseRunnerOptions) {
   let inputItems = options.initialInputItems;
-  let messages = options.initialMessages;
   let functionCalls: Array<Record<string, any>> = [];
-
-  const commitInputItems = async () => {
-    await options.onInputItemsChange(inputItems, messages);
-  };
+  const publish = (persist: boolean) => options.onItemsChange(inputItems, {persist});
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     functionCalls = [];
-    const messageIdsByItemId = new Map<string, string>();
-    const completedItemIds = new Set<string>();
-    const commitPartialMessages = async () => {
-      const partialMessages = Array.from(messageIdsByItemId.entries())
-        .filter(([itemId]) => !completedItemIds.has(itemId))
-        .map(([, messageId]) => messages.find(message => message.id === messageId))
-        .filter((message): message is ChatMessage => !!message?.content)
-        .map(message => ({
-          type: "message",
-          role: "assistant",
-          content: [{type: "output_text", text: message.content}],
-        }));
-      if (partialMessages.length > 0) {
-        inputItems = [...inputItems, ...partialMessages];
-        await commitInputItems();
-      }
-    };
+    const itemIndexes = new Map<string, number>();
+    let hasPartialText = false;
 
     try {
       for await (const event of streamResponsesApi(options.settings, options.instructions, inputItems, options.signal)) {
         const data = event.data;
-
         if (event.type === "response.output_text.delta" && data.delta) {
-          let messageId = messageIdsByItemId.get(data.item_id);
-          if (!messageId) {
-            messageId = options.generateId();
-            messageIdsByItemId.set(data.item_id, messageId);
-            messages = [...messages, {id: messageId, role: "assistant", content: ""}];
+          let index = itemIndexes.get(data.item_id);
+          if (index === undefined) {
+            index = inputItems.length;
+            itemIndexes.set(data.item_id, index);
+            // Partial messages intentionally have no server ID or completion status.
+            inputItems = [...inputItems, {type: "message", role: "assistant", content: []}];
           }
-          messages = messages.map(message => {
-            if (message.id !== messageId) return message;
-            return {...message, content: message.content + data.delta};
-          });
-          options.onMessagesChange(messages);
+          const item = inputItems[index];
+          const content = [...item.content];
+          const contentIndex = data.content_index ?? 0;
+          content[contentIndex] = {type: "output_text", text: (content[contentIndex]?.text ?? "") + data.delta};
+          inputItems = inputItems.map((candidate, position) => position === index ? {...item, content} : candidate);
+          hasPartialText = true;
+          await publish(false);
         }
         else if (event.type === "response.output_item.done" && data.item) {
           const item = data.item;
-          if (typeof item.id === "string") completedItemIds.add(item.id);
-          inputItems = [...inputItems, item];
-          if (item.type === "function_call") {
-            functionCalls.push(item);
+          const index = itemIndexes.get(item.id);
+          if (index === undefined) {
+            itemIndexes.set(item.id, inputItems.length);
+            inputItems = [...inputItems, item];
           }
-          else if (item.type === "message" && item.role === "assistant") {
-            const text = extractAssistantText(item);
-            let messageId = messageIdsByItemId.get(item.id);
-            if (!messageId && text) {
-              messageId = options.generateId();
-              messageIdsByItemId.set(item.id, messageId);
-              messages = [...messages, {id: messageId, role: "assistant", content: text}];
-            }
-            else if (messageId) {
-              messages = messages.map(message => message.id === messageId ? {...message, content: text} : message);
-            }
+          else {
+            inputItems = inputItems.map((candidate, position) => position === index ? item : candidate);
           }
-          await commitInputItems();
+          if (item.type === "function_call") functionCalls.push(item);
+          await publish(true);
         }
       }
     }
     catch (error) {
       if (!options.signal.aborted) throw error;
-      await commitPartialMessages();
       return;
+    }
+    finally {
+      if (hasPartialText) {
+        // Compact sparse content parts in interrupted messages before persistence/replay.
+        inputItems = inputItems.map(item => item.type === "message" && Array.isArray(item.content)
+          ? {...item, content: item.content.filter(Boolean)} : item);
+        await publish(true);
+      }
     }
 
-    if (options.signal.aborted) {
-      await commitPartialMessages();
-      return;
-    }
+    if (options.signal.aborted) return;
 
     if (functionCalls.length === 0) {
       break;
@@ -139,22 +103,9 @@ export async function runAgentResponseLoop(options: AgentResponseRunnerOptions) 
       if (options.signal.aborted) return;
       output = truncateToolOutput(output);
       inputItems = [...inputItems, createFunctionCallOutputItem(functionCall.call_id, output)];
-      messages = [...messages, {
-        id: options.generateId(),
-        role: "tool",
-        content: output || "(no output)",
-        callId: functionCall.call_id,
-      }];
-      await commitInputItems();
+      await publish(true);
     }
   }
 
-  if (functionCalls.length > 0) {
-    messages = [...messages, {
-      id: options.generateId(),
-      role: "assistant",
-      content: `Reached the maximum of ${MAX_TOOL_ROUNDS} tool calls. Send another message to continue.`,
-    }];
-    options.onMessagesChange(messages);
-  }
+  return functionCalls.length > 0 ? "max-tool-rounds" : undefined;
 }

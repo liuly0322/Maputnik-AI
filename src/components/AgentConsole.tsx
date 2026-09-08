@@ -9,14 +9,14 @@ import {
   createUserInputItem,
   defaultAgentSettings,
   type AgentSettings,
+  type AgentInputItem,
 } from "../libs/agent-client";
 import {
   createAgentExecutionContext,
   type AgentExecutionContext,
 } from "../libs/agent-executor";
-import {createChatMessages, type AgentConsoleSession, type ChatMessage} from "../libs/agent-conversation";
-import {runAgentResponseLoop} from "../libs/agent-response-runner";
-import {AgentSessionStore} from "../libs/agent-session-store";
+import {MAX_TOOL_ROUNDS, runAgentResponseLoop} from "../libs/agent-response-runner";
+import {AgentSessionStore, type AgentSession} from "../libs/agent-session-store";
 import {
   createAgentTurnUndoStyle,
   undoLatestAgentTurn,
@@ -43,7 +43,7 @@ type AgentConsoleInternalState = {
   model: string;
   input: string;
   pendingImages: string[];
-  sessions: AgentConsoleSession[];
+  sessions: AgentSession[];
   sessionsReady: boolean;
   activeSessionId: string | null;
   settingsOpen: boolean;
@@ -89,9 +89,9 @@ function saveSettings(settings: AgentSettings) {
 }
 
 function updateSession(
-  sessions: AgentConsoleSession[],
+  sessions: AgentSession[],
   sessionId: string,
-  patch: Partial<AgentConsoleSession>
+  patch: Partial<AgentSession>
 ) {
   return sessions.map(session => {
     if (session.id !== sessionId) {
@@ -111,7 +111,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   private sessionStore = new AgentSessionStore();
   private settingsSaveTimer: number | null = null;
   private streamingUpdateTimer: number | null = null;
-  private pendingStreamingMessages: {sessionId: string; messages: ChatMessage[]} | null = null;
+  private pendingStreamingItems: {sessionId: string; inputItems: AgentInputItem[]} | null = null;
   private shouldAutoScrollAfterUpdate = false;
   private responseAbortController: AbortController | null = null;
   private turnUndoStyles = new Map<string, AgentTurnUndoStyle>();
@@ -144,11 +144,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   loadSessions = async () => {
     try {
-      const storedSessions = await this.sessionStore.init();
-      const sessions = storedSessions.map(session => ({
-        ...session,
-        messages: createChatMessages(session.inputItems),
-      }));
+      const sessions = await this.sessionStore.init();
       if (!this.mounted) {
         this.sessionStore.close();
         return;
@@ -190,7 +186,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     if (this.streamingUpdateTimer !== null) {
       window.clearTimeout(this.streamingUpdateTimer);
     }
-    this.pendingStreamingMessages = null;
+    this.pendingStreamingItems = null;
     this.saveSettingsNow();
     this.sessionStore.close();
   }
@@ -205,32 +201,32 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       - messagesContainer.clientHeight <= BOTTOM_SCROLL_TOLERANCE_PX;
   };
 
-  flushStreamingMessages = async () => {
+  flushStreamingItems = async () => {
     if (this.streamingUpdateTimer !== null) {
       window.clearTimeout(this.streamingUpdateTimer);
       this.streamingUpdateTimer = null;
     }
 
-    const pending = this.pendingStreamingMessages;
-    this.pendingStreamingMessages = null;
+    const pending = this.pendingStreamingItems;
+    this.pendingStreamingItems = null;
     if (!pending || !this.mounted) return;
 
     this.shouldAutoScrollAfterUpdate = pending.sessionId === this.state.activeSessionId
       && this.isMessagesNearBottom();
     await new Promise<void>(resolve => {
       this.setState(state => ({
-        sessions: updateSession(state.sessions, pending.sessionId, {messages: pending.messages}),
+        sessions: updateSession(state.sessions, pending.sessionId, {inputItems: pending.inputItems}),
       }), resolve);
     });
   };
 
-  scheduleStreamingMessages = (sessionId: string, messages: ChatMessage[]) => {
-    this.pendingStreamingMessages = {sessionId, messages};
+  scheduleStreamingItems = (sessionId: string, inputItems: AgentInputItem[]) => {
+    this.pendingStreamingItems = {sessionId, inputItems};
     if (this.streamingUpdateTimer !== null) return;
 
     this.streamingUpdateTimer = window.setTimeout(() => {
       this.streamingUpdateTimer = null;
-      void this.flushStreamingMessages();
+      void this.flushStreamingItems();
     }, STREAMING_UPDATE_INTERVAL_MS);
   };
 
@@ -299,16 +295,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }));
   };
 
-  persistSession = async (session: AgentConsoleSession): Promise<boolean> => {
+  persistSession = async (session: AgentSession): Promise<boolean> => {
     try {
-      await this.sessionStore.put({
-        id: session.id,
-        title: session.title,
-        inputItems: session.inputItems,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
-        styleCheckpoint: session.styleCheckpoint,
-      });
+      await this.sessionStore.put(session);
       return true;
     }
     catch (error) {
@@ -356,10 +345,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   onNewSession = () => {
     if (!this.state.sessionsReady) return;
-    const session: AgentConsoleSession = {
+    const session: AgentSession = {
       id: generateId(),
       title: this.props.t("New session"),
-      messages: [],
       inputItems: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -443,10 +431,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       return;
     }
 
-    const undoneSession: AgentConsoleSession = {
-      ...result.session,
-      messages: createChatMessages(result.session.inputItems),
-    };
+    const undoneSession = result.session;
 
     try {
       this.props.updateMaputnikStyle(cloneDeep(styleBefore));
@@ -496,12 +481,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const abortController = new AbortController();
     this.responseAbortController = abortController;
 
-    const userMessage: ChatMessage = {
-      id: generateId(),
-      role: "user",
-      content: text,
-      images: this.state.pendingImages,
-    };
     const userItem = createUserInputItem(text, this.state.pendingImages);
 
     let sessions = [...this.state.sessions];
@@ -513,16 +492,14 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
     if (activeSession) {
       sessions = updateSession(sessions, activeSession.id, {
-        messages: [...activeSession.messages, userMessage],
         inputItems: [...activeSession.inputItems, userItem],
-        title: activeSession.messages.length === 0 ? text.slice(0, 60) : activeSession.title,
+        title: activeSession.inputItems.length === 0 ? text.slice(0, 60) : activeSession.title,
       });
     }
     else {
-      const session: AgentConsoleSession = {
+      const session: AgentSession = {
         id: turnSessionId,
         title: text.slice(0, 60),
-        messages: [userMessage],
         inputItems: [userItem],
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -547,29 +524,24 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const nextSession = sessions.find(session => session.id === activeSessionId)!;
     const sessionId = nextSession.id;
     await this.persistSession(nextSession);
-    let streamingSessions = sessions;
     try {
-      await runAgentResponseLoop({
+      const result = await runAgentResponseLoop({
         settings,
         instructions: buildAgentInstructions(this.props.datasetStore.getAll()),
         initialInputItems: nextSession.inputItems,
-        initialMessages: nextSession.messages,
         signal: abortController.signal,
         createExecutionContext: this.buildExecutionContext,
-        generateId,
-        onMessagesChange: messages => {
-          this.scheduleStreamingMessages(sessionId, messages);
-        },
-        onInputItemsChange: async (inputItems, messages) => {
-          await this.flushStreamingMessages();
-          this.shouldAutoScrollAfterUpdate = sessionId === this.state.activeSessionId
-            && this.isMessagesNearBottom();
-          streamingSessions = updateSession(streamingSessions, sessionId, {messages, inputItems});
-          this.setState({sessions: streamingSessions});
-          const session = streamingSessions.find(candidate => candidate.id === sessionId);
-          if (session) await this.persistSession(session);
+        onItemsChange: async (inputItems, {persist}) => {
+          this.scheduleStreamingItems(sessionId, inputItems);
+          if (!persist) return;
+          await this.flushStreamingItems();
+          const session = this.state.sessions.find(candidate => candidate.id === sessionId);
+          if (session) await this.persistSession({...session, inputItems});
         },
       });
+      if (result === "max-tool-rounds" && this.mounted) {
+        this.setState({notice: this.props.t("Reached the maximum of {{count}} tool calls. Send another message to continue.", {count: MAX_TOOL_ROUNDS})});
+      }
     }
     catch (error) {
       if (!abortController.signal.aborted) {
@@ -580,7 +552,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
     finally {
       if (this.responseAbortController === abortController) {
-        await this.flushStreamingMessages();
+        await this.flushStreamingItems();
         await this.saveStyleCheckpoint(sessionId);
         this.responseAbortController = null;
         if (this.mounted) this.setState({busy: false});
