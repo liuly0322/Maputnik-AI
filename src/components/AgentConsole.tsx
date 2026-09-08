@@ -11,17 +11,10 @@ import {
   type AgentSettings,
   type AgentInputItem,
 } from "../libs/agent-client";
-import {
-  createAgentExecutionContext,
-  type AgentExecutionContext,
-} from "../libs/agent-executor";
+import type {AgentExecutionContext} from "../libs/agent-executor";
 import {MAX_TOOL_ROUNDS, runAgentResponseLoop} from "../libs/agent-response-runner";
 import {AgentSessionStore, type AgentSession} from "../libs/agent-session-store";
-import {
-  createAgentTurnUndoStyle,
-  undoLatestAgentTurn,
-  type AgentTurnUndoStyle,
-} from "../libs/agent-turn-undo";
+import {undoLatestAgentTurn} from "../libs/agent-turn-undo";
 import {createDatasetWorkspace} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 import {AgentConsoleChat} from "./AgentConsoleChat";
@@ -106,7 +99,6 @@ function updateSession(
 }
 
 class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, AgentConsoleInternalState> {
-  private imageInputRef = React.createRef<HTMLInputElement>();
   private messagesEndRef = React.createRef<HTMLDivElement>();
   private sessionStore = new AgentSessionStore();
   private settingsSaveTimer: number | null = null;
@@ -114,7 +106,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   private pendingStreamingItems: {sessionId: string; inputItems: AgentInputItem[]} | null = null;
   private shouldAutoScrollAfterUpdate = false;
   private responseAbortController: AbortController | null = null;
-  private turnUndoStyles = new Map<string, AgentTurnUndoStyle>();
+  private turnUndoStyles = new Map<string, StyleSpecification>();
   private previewReadySessionIds = new Set<string>();
   private mounted = false;
 
@@ -171,11 +163,11 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   }
 
   buildExecutionContext = (): AgentExecutionContext => {
-    return createAgentExecutionContext({
-      getMap: this.props.getMap,
+    return {
+      map: this.props.getMap(),
       updateMaputnikStyle: this.props.updateMaputnikStyle,
       datasets: createDatasetWorkspace(this.props.datasetStore),
-    });
+    };
   };
 
   componentWillUnmount() {
@@ -254,10 +246,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     });
   };
 
-  onAddImage = () => {
-    this.imageInputRef.current?.click();
-  };
-
   addImageFiles = (files: File[]) => {
     for (const file of files) {
       if (!file.type.startsWith("image/")) {
@@ -273,20 +261,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  onImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    this.addImageFiles(Array.from(event.target.files ?? []));
-    event.target.value = "";
-  };
-
-  onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const files = Array.from(event.clipboardData.items)
-      .filter(item => item.kind === "file" && item.type.startsWith("image/"))
-      .map(item => item.getAsFile())
-      .filter((file): file is File => file !== null);
-
-    this.addImageFiles(files);
   };
 
   onRemovePendingImage = (index: number) => {
@@ -488,7 +462,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const activeSession = sessions.find(session => session.id === activeSessionId);
     const turnSessionId = activeSession?.id ?? generateId();
     this.previewReadySessionIds.delete(turnSessionId);
-    this.turnUndoStyles.set(turnSessionId, createAgentTurnUndoStyle(this.props.getMaputnikStyle()));
+    this.turnUndoStyles.set(turnSessionId, cloneDeep(this.props.getMaputnikStyle()));
 
     if (activeSession) {
       sessions = updateSession(sessions, activeSession.id, {
@@ -560,17 +534,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     }
   };
 
-  onInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    this.setState({input: event.target.value});
-  };
-
-  onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void this.onSend();
-    }
-  };
-
   render() {
     const {t} = this.props;
     const liveMap = this.props.getMap();
@@ -630,17 +593,13 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
           onCloseStylePreview={() => this.setState({stylePreviewOpen: false})}
           composer={<AgentConsoleComposer
             t={t}
-            imageInputRef={this.imageInputRef}
             input={this.state.input}
             pendingImages={this.state.pendingImages}
             busy={this.state.busy}
             sessionsReady={this.state.sessionsReady}
-            onImageChange={this.onImageChange}
+            onAddFiles={this.addImageFiles}
             onRemovePendingImage={this.onRemovePendingImage}
-            onInputChange={this.onInputChange}
-            onKeyDown={this.onKeyDown}
-            onPaste={this.onPaste}
-            onAddImage={this.onAddImage}
+            onInputChange={input => this.setState({input})}
             onStop={this.onStop}
             onSend={() => void this.onSend()}
           />}

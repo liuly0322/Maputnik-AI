@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest";
 import type {StyleSpecification} from "maplibre-gl";
 
 import type {AgentSession} from "./agent-session-store";
-import {createAgentTurnUndoStyle, undoLatestAgentTurn} from "./agent-turn-undo";
+import {undoLatestAgentTurn} from "./agent-turn-undo";
 
 function style(name: string): StyleSpecification {
   return {
@@ -30,14 +30,6 @@ const firstTurn = [
 ];
 
 describe("agent turn undo", () => {
-  it("keeps an independent style snapshot", () => {
-    const currentStyle = style("before");
-    const snapshot = createAgentTurnUndoStyle(currentStyle);
-
-    currentStyle.name = "changed";
-    expect(snapshot.name).toBe("before");
-  });
-
   it("removes every item from the latest user turn across multiple tool rounds", () => {
     const inputItems = [
       ...firstTurn,

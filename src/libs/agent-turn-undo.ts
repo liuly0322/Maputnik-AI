@@ -2,9 +2,8 @@ import cloneDeep from "lodash.clonedeep";
 import type {StyleSpecification} from "maplibre-gl";
 
 import type {AgentInputItem} from "./agent-client";
+import {extractMessageImages} from "./agent-conversation";
 import type {AgentSession} from "./agent-session-store";
-
-export type AgentTurnUndoStyle = StyleSpecification;
 
 export type AgentTurnUndoResult = {
   session: AgentSession;
@@ -29,20 +28,12 @@ function extractComposerContent(item: AgentInputItem) {
     .map((part: Record<string, any>) => part.type === "input_text" && typeof part.text === "string" ? part.text : "")
     .filter(Boolean)
     .join("\n");
-  const pendingImages = item.content
-    .filter((part: Record<string, any>) => part.type === "input_image" && typeof part.image_url === "string")
-    .map((part: Record<string, any>) => part.image_url as string);
-
-  return {input, pendingImages};
-}
-
-export function createAgentTurnUndoStyle(style: StyleSpecification): AgentTurnUndoStyle {
-  return cloneDeep(style);
+  return {input, pendingImages: extractMessageImages(item)};
 }
 
 export function undoLatestAgentTurn(
   session: AgentSession,
-  styleBefore: AgentTurnUndoStyle,
+  styleBefore: StyleSpecification,
   updatedAt = Date.now()
 ): AgentTurnUndoResult | null {
   let userItemIndex = -1;

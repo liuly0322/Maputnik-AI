@@ -1,7 +1,6 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 
 import {
-  createAgentExecutionContext,
   executeAgentJavaScript,
   MAX_TOOL_OUTPUT_UTF8_BYTES,
   truncateToolOutput,
@@ -44,7 +43,7 @@ describe("executeAgentJavaScript", () => {
 
 });
 
-describe("createAgentExecutionContext", () => {
+describe("live map synchronization", () => {
   it("synchronizes the final map style exactly once", async () => {
     const liveStyle: any = {
       version: 8,
@@ -60,11 +59,11 @@ describe("createAgentExecutionContext", () => {
       },
     };
     const updateMaputnikStyle = vi.fn();
-    const context = createAgentExecutionContext({
-      getMap: () => map,
+    const context = {
+      map,
       updateMaputnikStyle,
       datasets,
-    });
+    };
 
     await executeAgentJavaScript(`
       map.addLayer({id: "native", type: "background"});
@@ -84,7 +83,7 @@ describe("createAgentExecutionContext", () => {
       getStyle: () => liveStyle,
     };
     const updateMaputnikStyle = vi.fn();
-    const context = createAgentExecutionContext({getMap: () => map, updateMaputnikStyle, datasets});
+    const context = {map, updateMaputnikStyle, datasets};
 
     await expect(executeAgentJavaScript(`
       map.addLayer({id: "kept-after-error", type: "background"});

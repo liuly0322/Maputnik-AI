@@ -7,12 +7,6 @@ export type AgentExecutionContext = {
   updateMaputnikStyle(style: StyleSpecification): void;
 };
 
-export type AgentExecutionContextFactoryArgs = {
-  getMap(): Map | null;
-  updateMaputnikStyle(style: StyleSpecification): void;
-  datasets: DatasetWorkspace;
-};
-
 export const MAX_TOOL_OUTPUT_UTF8_BYTES = 100_000;
 
 const utf8Encoder = new TextEncoder();
@@ -98,16 +92,6 @@ function sanitizeJsonValue(value: unknown): unknown {
 
 function sanitizeStyle(style: StyleSpecification): StyleSpecification {
   return sanitizeJsonValue(style) as StyleSpecification;
-}
-
-export function createAgentExecutionContext(
-  args: AgentExecutionContextFactoryArgs
-): AgentExecutionContext {
-  return {
-    map: args.getMap(),
-    datasets: args.datasets,
-    updateMaputnikStyle: args.updateMaputnikStyle,
-  };
 }
 
 export async function executeAgentJavaScript(code: string, context: AgentExecutionContext) {

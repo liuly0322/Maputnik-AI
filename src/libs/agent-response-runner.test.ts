@@ -41,7 +41,7 @@ describe("runAgentResponseLoop", () => {
     }]);
     expect(updates[0].items[0].content[0].text).toBe("Hel");
     expect(updates[updates.length - 1]?.items).toEqual([complete]);
-    expect(updates[updates.length - 1]?.persist).toBe(true);
+    expect(updates.filter(update => update.persist)).toHaveLength(1);
   });
 
   it("persists interrupted content parts without a server ID or completion status", async () => {

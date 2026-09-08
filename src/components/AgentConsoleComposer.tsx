@@ -4,32 +4,32 @@ import {MdImage, MdSend, MdStop} from "react-icons/md";
 
 type AgentConsoleComposerProps = {
   t: TFunction;
-  imageInputRef: React.RefObject<HTMLInputElement | null>;
   input: string;
   pendingImages: string[];
   busy: boolean;
   sessionsReady: boolean;
-  onImageChange(event: React.ChangeEvent<HTMLInputElement>): void;
+  onAddFiles(files: File[]): void;
   onRemovePendingImage(index: number): void;
-  onInputChange(event: React.ChangeEvent<HTMLTextAreaElement>): void;
-  onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void;
-  onPaste(event: React.ClipboardEvent<HTMLTextAreaElement>): void;
-  onAddImage(): void;
+  onInputChange(value: string): void;
   onStop(): void;
   onSend(): void;
 };
 
 export function AgentConsoleComposer(props: AgentConsoleComposerProps) {
   const {t} = props;
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
 
   return <div className="agent-console-composer">
     <input
-      ref={props.imageInputRef}
+      ref={imageInputRef}
       type="file"
       accept="image/*"
       multiple
       style={{display: "none"}}
-      onChange={props.onImageChange}
+      onChange={event => {
+        props.onAddFiles(Array.from(event.target.files ?? []));
+        event.target.value = "";
+      }}
       data-wd-key="agent-console:image-input"
     />
     {props.pendingImages.length > 0 && <div className="agent-console-pending-images">
@@ -42,15 +42,26 @@ export function AgentConsoleComposer(props: AgentConsoleComposerProps) {
     </div>}
     <textarea
       value={props.input}
-      onChange={props.onInputChange}
-      onKeyDown={props.onKeyDown}
-      onPaste={props.onPaste}
+      onChange={event => props.onInputChange(event.target.value)}
+      onKeyDown={event => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          props.onSend();
+        }
+      }}
+      onPaste={event => {
+        const files = Array.from(event.clipboardData.items)
+          .filter(item => item.kind === "file" && item.type.startsWith("image/"))
+          .map(item => item.getAsFile())
+          .filter((file): file is File => file !== null);
+        props.onAddFiles(files);
+      }}
       placeholder={t("Describe what you want to inspect or change...")}
       disabled={props.busy || !props.sessionsReady}
       data-wd-key="agent-console:input"
     />
     <div className="agent-console-toolbar">
-      <button className="maputnik-button maputnik-button--with-icon" onClick={props.onAddImage} data-wd-key="agent-console:add-image">
+      <button className="maputnik-button maputnik-button--with-icon" onClick={() => imageInputRef.current?.click()} data-wd-key="agent-console:add-image">
         <MdImage />
         {t("Add image")}
       </button>

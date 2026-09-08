@@ -29,7 +29,7 @@ export async function runAgentResponseLoop(options: AgentResponseRunnerOptions) 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     functionCalls = [];
     const itemIndexes = new Map<string, number>();
-    let hasPartialText = false;
+    let hasPartialTextToPersist = false;
 
     try {
       for await (const event of streamResponsesApi(options.settings, options.instructions, inputItems, options.signal)) {
@@ -47,7 +47,7 @@ export async function runAgentResponseLoop(options: AgentResponseRunnerOptions) 
           const contentIndex = data.content_index ?? 0;
           content[contentIndex] = {type: "output_text", text: (content[contentIndex]?.text ?? "") + data.delta};
           inputItems = inputItems.map((candidate, position) => position === index ? {...item, content} : candidate);
-          hasPartialText = true;
+          hasPartialTextToPersist = true;
           await publish(false);
         }
         else if (event.type === "response.output_item.done" && data.item) {
@@ -62,6 +62,7 @@ export async function runAgentResponseLoop(options: AgentResponseRunnerOptions) 
           }
           if (item.type === "function_call") functionCalls.push(item);
           await publish(true);
+          hasPartialTextToPersist = false;
         }
       }
     }
@@ -70,7 +71,7 @@ export async function runAgentResponseLoop(options: AgentResponseRunnerOptions) 
       return;
     }
     finally {
-      if (hasPartialText) {
+      if (hasPartialTextToPersist) {
         // Compact sparse content parts in interrupted messages before persistence/replay.
         inputItems = inputItems.map(item => item.type === "message" && Array.isArray(item.content)
           ? {...item, content: item.content.filter(Boolean)} : item);

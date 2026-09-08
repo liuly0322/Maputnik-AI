@@ -5,7 +5,7 @@ import {
   DATASET_WORKFLOW_EXAMPLE,
   streamResponsesApi,
 } from "./agent-client";
-import {createAgentExecutionContext, executeAgentJavaScript} from "./agent-executor";
+import {executeAgentJavaScript, type AgentExecutionContext} from "./agent-executor";
 import {createDatasetWorkspace, type Dataset} from "./dataset";
 import {DatasetStore} from "./dataset-store";
 
@@ -73,13 +73,13 @@ describe("buildAgentInstructions", () => {
         liveStyle = nextStyle;
       },
     };
-    const context = createAgentExecutionContext({
-      getMap: () => map,
+    const context: AgentExecutionContext = {
+      map,
       updateMaputnikStyle: nextStyle => {
         committedStyle = nextStyle;
       },
       datasets: createDatasetWorkspace(store),
-    });
+    };
     const code = DATASET_WORKFLOW_EXAMPLE.replace("<exact ID from the dataset catalog>", dataset.id);
 
     const output = JSON.parse(await executeAgentJavaScript(code, context));

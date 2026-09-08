@@ -13,13 +13,6 @@ export type AgentSettings = {
 
 export type AgentInputItem = Record<string, any>;
 
-export type AgentApiResponse = {
-  output?: Array<Record<string, any>>;
-  error?: {
-    message?: string;
-  };
-};
-
 export type AgentStreamEvent = {
   type: string;
   data: any;
@@ -244,45 +237,6 @@ export function runJavascriptToolDefinition() {
       required: ["code"],
     },
   };
-}
-
-export async function callResponsesApi(
-  settings: AgentSettings,
-  instructions: string,
-  input: AgentInputItem[]
-): Promise<AgentApiResponse> {
-  const endpoint = normalizeEndpoint(settings.endpoint);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${settings.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: settings.model,
-      instructions,
-      input,
-      tools: [runJavascriptToolDefinition()],
-      tool_choice: "auto",
-      stream: false,
-    }),
-  });
-
-  if (!response.ok) {
-    let message = `Responses API request failed (${response.status})`;
-    try {
-      const body = await response.json();
-      if (body.error?.message) {
-        message = body.error.message;
-      }
-    }
-    catch {
-      // Keep the status-based message.
-    }
-    throw new Error(message);
-  }
-
-  return response.json() as Promise<AgentApiResponse>;
 }
 
 function parseSseBlock(block: string): AgentStreamEvent | null {
