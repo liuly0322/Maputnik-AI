@@ -42,7 +42,13 @@ jobs:
         run: npm run test-unit -- --run
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          # GitHub-hosted runners include third-party apt repositories.
+          # They are unnecessary for Playwright and can occasionally have
+          # temporarily inconsistent package indexes.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
+          sudo rm -f /etc/apt/sources.list.d/google*.list
+          npx playwright install --with-deps chromium
 
       - name: Run end-to-end tests
         run: npm run test-e2e
