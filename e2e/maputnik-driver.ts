@@ -41,6 +41,7 @@ export class MaputnikDriver {
         "access-token-style.json",
         "legacy-mbgljs-style.json",
         "agent-export-style.json",
+        "grouped-layers-style.json",
       ];
       for (const fixture of styleFixtures) {
         await this.helper.given.interceptAndMockResponse({
@@ -65,6 +66,18 @@ export class MaputnikDriver {
 
     modal: this.modalDriver.when,
 
+    deleteLayer: async (id: string, control: "menu" | "trash" = "menu") => {
+      if (control === "trash") {
+        await this.helper.when.hover("layer-list-item:" + id);
+        await this.helper.when.click("layer-list-item:" + id + ":delete");
+        return;
+      }
+
+      await this.helper.when.click("layer-list-item:" + id);
+      await this.helper.when.click("skip-target-layer-editor");
+      await this.helper.when.click("menu-delete-layer");
+    },
+
     setStyle: async (
       styleProperties:
         | "geojson"
@@ -77,6 +90,7 @@ export class MaputnikDriver {
         | "access_tokens"
         | "legacy_mbgljs"
         | "agent_export"
+        | "grouped_layers"
         | "",
       zoom?: number
     ) => {
@@ -91,6 +105,7 @@ export class MaputnikDriver {
         access_tokens: "access-token-style.json",
         legacy_mbgljs: "legacy-mbgljs-style.json",
         agent_export: "agent-export-style.json",
+        grouped_layers: "grouped-layers-style.json",
       };
 
       const url = new URL(baseUrl);
