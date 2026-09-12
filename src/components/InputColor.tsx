@@ -1,11 +1,12 @@
 import React from "react";
 import Color from "color";
-import {ChromePicker, type ColorResult} from "react-color";
+import {HexColorInput, RgbaStringColorPicker} from "react-colorful";
 import { throttle } from "lodash-es";
 
-function formatColor(color: ColorResult): string {
-  const rgb = color.rgb;
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${rgb.a})`;
+function toRgbaString(value: string | undefined, alpha?: number): string {
+  const color = Color(value);
+  const {r, g, b} = color.rgb().object();
+  return `rgba(${r}, ${g}, ${b}, ${alpha ?? color.alpha()})`;
 }
 
 export type InputColorProps = {
@@ -21,7 +22,8 @@ export type InputColorProps = {
 /*** Number fields with support for min, max and units and documentation*/
 export class InputColor extends React.Component<InputColorProps> {
   state = {
-    pickerOpened: false
+    pickerOpened: false,
+    hexEditing: null as string | null
   };
   colorInput: HTMLInputElement | null = null;
 
@@ -30,9 +32,9 @@ export class InputColor extends React.Component<InputColorProps> {
     this.onChangeNoCheck = throttle(this.onChangeNoCheck, 1000/30);
   }
 
-  onChangeNoCheck(v: string) {
+  onChangeNoCheck = (v: string) => {
     this.props.onChange(v);
-  }
+  };
 
   //TODO: I much rather would do this with absolute positioning
   //but I am too stupid to get it to work together with fixed position
@@ -60,13 +62,42 @@ export class InputColor extends React.Component<InputColorProps> {
   get color() {
     // Catch invalid color.
     try {
-      return Color(this.props.value).rgb();
+      return toRgbaString(this.props.value);
     }
     catch(err) {
       console.warn("Error parsing color: ", err);
-      return Color("rgb(255,255,255)");
+      return "rgba(255, 255, 255, 1)";
     }
   }
+
+  get hexColor(): string {
+    if (this.state.hexEditing !== null) {
+      return this.state.hexEditing;
+    }
+    try {
+      return Color(this.props.value).hex();
+    }
+    catch {
+      return "";
+    }
+  }
+
+  onHexFocus = () => {
+    this.setState({ hexEditing: this.hexColor });
+  };
+
+  onHexBlur = () => {
+    this.setState({ hexEditing: null });
+  };
+
+  onHexChange = (hex: string) => {
+    try {
+      this.onChangeNoCheck(toRgbaString(hex, Color(this.props.value).alpha()));
+    }
+    catch(err) {
+      console.warn("Error parsing hex color: ", err);
+    }
+  };
 
   onChange (v: string) {
     this.props.onChange(v === "" ? undefined : v);
@@ -74,27 +105,29 @@ export class InputColor extends React.Component<InputColorProps> {
 
   render() {
     const offset = this.calcPickerOffset();
-    const currentColor = this.color.object();
-    const currentChromeColor = {
-      r: currentColor.r,
-      g: currentColor.g,
-      b: currentColor.b,
-      // Rename alpha -> a for ChromePicker
-      a: currentColor.alpha!
-    };
 
     const picker = <div
-      className="maputnik-color-picker-offset"
+      className="maputnik-color-picker-offset maputnik-color-picker"
       style={{
         position: "fixed",
         zIndex: 1,
         left: offset.left,
         top: offset.top,
       }}>
-      <ChromePicker
-        color={currentChromeColor}
-        onChange={c => this.onChangeNoCheck(formatColor(c))}
+      <RgbaStringColorPicker
+        color={this.color}
+        onChange={this.onChangeNoCheck}
       />
+      {/* A wrapper only so focus and blur of the field can be tracked; the
+          input overrides `onBlur` internally, so it cannot be passed down. */}
+      <div onFocus={this.onHexFocus} onBlur={this.onHexBlur}>
+        <HexColorInput
+          className="maputnik-color-picker-hex"
+          color={this.hexColor}
+          prefixed
+          onChange={this.onHexChange}
+        />
+      </div>
       <div
         className="maputnik-color-picker-offset"
         onClick={this.togglePicker}

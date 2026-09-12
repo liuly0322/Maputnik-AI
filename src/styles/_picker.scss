@@ -1,12 +1,43 @@
+@use "input";
 
+.maputnik-color-picker {
+  background-color: #1c1f24;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
 
-.chrome-picker {
-  background-color: #1c1f24 !important;
-  font-family: inherit !important;
+  // Height follows the panels below, so only the width is set.
+  .react-colorful {
+    gap: 12px;
+    height: auto;
+    width: 225px;
+  }
+
+  .react-colorful__saturation {
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    flex: 0 0 125px;
+  }
+
+  .react-colorful__hue,
+  .react-colorful__alpha {
+    border-radius: 7px;
+    height: 14px;
+    margin: 0 12px;
+  }
+
+  .react-colorful__pointer {
+    height: 16px;
+    width: 16px;
+  }
 }
 
-.chrome-picker input {
-  background-color: rgb(38, 40, 46) !important;
-  color: rgb(142, 142, 142) !important;
-  box-shadow: none !important;
+.maputnik-color-picker-hex {
+  @extend .maputnik-input !optional; /* stylelint-disable-line */
+
+  background-color: #26282e;
+  font-family: inherit;
+  margin: 12px;
+  // `.maputnik-input` is width: 100%, which would ignore the margin above.
+  width: calc(100% - 24px);
+  text-align: center;
 }
