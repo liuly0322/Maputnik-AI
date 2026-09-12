@@ -51,6 +51,18 @@ const LazyModalAgentWorkspace = React.lazy(() =>
   }))
 );
 
+const AgentWorkspaceLoading = () => <div
+  className="agent-console-generating maputnik-agent-workspace-loading"
+  role="status"
+  aria-live="polite"
+>
+  <svg className="agent-console-generating-spinner" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+    <path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+  <span>{i18next.t("Loading")}</span>
+</div>;
+
 // Buffer must be defined globally for @maplibre/maplibre-gl-style-spec validate() function to succeed.
 window.Buffer = buffer.Buffer;
 
@@ -1043,7 +1055,7 @@ export class App extends React.Component<any, AppState> {
         isOpen={this.state.isOpen.globalState}
         onOpenToggle={() => this.toggleModal("globalState")}
       />
-      <React.Suspense fallback={null}>
+      <React.Suspense fallback={this.state.isOpen.agentConsole ? <AgentWorkspaceLoading /> : null}>
         <LazyModalAgentWorkspace
           isOpen={this.state.isOpen.agentConsole}
           onOpenToggle={() => this.toggleModal("agentConsole")}
