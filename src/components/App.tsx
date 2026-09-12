@@ -29,7 +29,6 @@ import { ModalOpen } from "./modals/ModalOpen";
 import { ModalShortcuts } from "./modals/ModalShortcuts";
 import { ModalDebug } from "./modals/ModalDebug";
 import { ModalGlobalState } from "./modals/ModalGlobalState";
-import { ModalAgentWorkspace } from "./modals/ModalAgentWorkspace";
 
 import {downloadGlyphsMetadata, downloadSpriteMetadata} from "../libs/metadata";
 import { emptyStyle, replaceAccessTokenInUrl, replaceAccessTokens } from "../libs/style";
@@ -43,6 +42,26 @@ import { type MapOptions } from "maplibre-gl";
 import { type MappedError, type OnStyleChangedOpts, type StyleSpecificationWithId } from "../libs/definitions";
 import { DatasetStore } from "../libs/dataset-store";
 import type { MapOpenLayers } from "./MapOpenLayers";
+
+// Keep the agent workspace out of the initial bundle, while still loading it
+// by default because the lazy component is rendered with the other modals.
+const LazyModalAgentWorkspace = React.lazy(() =>
+  import("./modals/ModalAgentWorkspace").then(({ModalAgentWorkspace}) => ({
+    default: ModalAgentWorkspace,
+  }))
+);
+
+const AgentWorkspaceLoading = () => <div
+  className="agent-console-generating maputnik-agent-workspace-loading"
+  role="status"
+  aria-live="polite"
+>
+  <svg className="agent-console-generating-spinner" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+    <path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+  <span>{i18next.t("Loading")}</span>
+</div>;
 
 // Buffer must be defined globally for @maplibre/maplibre-gl-style-spec validate() function to succeed.
 window.Buffer = buffer.Buffer;
@@ -1036,16 +1055,18 @@ export class App extends React.Component<any, AppState> {
         isOpen={this.state.isOpen.globalState}
         onOpenToggle={() => this.toggleModal("globalState")}
       />
-      <ModalAgentWorkspace
-        isOpen={this.state.isOpen.agentConsole}
-        onOpenToggle={() => this.toggleModal("agentConsole")}
-        getMap={this.getAgentMap}
-        getMaputnikStyle={this.getAgentMaputnikStyle}
-        updateMaputnikStyle={this.updateAgentMaputnikStyle}
-        datasetStore={this.datasetStore}
-        onDatasetsChange={this.onDatasetsChange}
-        renderer={this._getRenderer()}
-      />
+      <React.Suspense fallback={this.state.isOpen.agentConsole ? <AgentWorkspaceLoading /> : null}>
+        <LazyModalAgentWorkspace
+          isOpen={this.state.isOpen.agentConsole}
+          onOpenToggle={() => this.toggleModal("agentConsole")}
+          getMap={this.getAgentMap}
+          getMaputnikStyle={this.getAgentMaputnikStyle}
+          updateMaputnikStyle={this.updateAgentMaputnikStyle}
+          datasetStore={this.datasetStore}
+          onDatasetsChange={this.onDatasetsChange}
+          renderer={this._getRenderer()}
+        />
+      </React.Suspense>
     </div>;
 
     return <AppLayout
