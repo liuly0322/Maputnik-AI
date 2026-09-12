@@ -439,6 +439,10 @@ describe("modals", () => {
       await when.select("modal:settings.maputnik:renderer", "ol");
       await then(get.inputValue("modal:settings.maputnik:renderer")).shouldEqual("ol");
 
+      // The renderer is bundled separately and loaded on demand, so make sure
+      // it really mounts rather than leaving the map panel on its placeholder.
+      await then(get.element(".maputnik-ol-container")).shouldExist({timeout: 20000});
+
       await when.click("modal:settings.name");
       await then(get.styleFromLocalStorage()).shouldDeepNestedInclude({
         metadata: { "maputnik:renderer": "ol" },

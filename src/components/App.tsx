@@ -1,4 +1,6 @@
 import React from "react";
+import classnames from "classnames";
+import i18next from "i18next";
 import cloneDeep from "lodash.clonedeep";
 import clamp from "lodash.clamp";
 import buffer from "buffer";
@@ -13,7 +15,6 @@ import {validateStyleMin} from "@maplibre/maplibre-gl-style-spec";
 import latest from "@maplibre/maplibre-gl-style-spec/dist/latest.json";
 
 import { MapMaplibreGl } from "./MapMaplibreGl";
-import { MapOpenLayers } from "./MapOpenLayers";
 import { CodeEditor } from "./CodeEditor";
 import { LayerList } from "./LayerList";
 import { LayerEditor } from "./LayerEditor";
@@ -41,6 +42,7 @@ import isEqual from "lodash.isequal";
 import { type MapOptions } from "maplibre-gl";
 import { type MappedError, type OnStyleChangedOpts, type StyleSpecificationWithId } from "../libs/definitions";
 import { DatasetStore } from "../libs/dataset-store";
+import type { MapOpenLayers } from "./MapOpenLayers";
 
 // Buffer must be defined globally for @maplibre/maplibre-gl-style-spec validate() function to succeed.
 window.Buffer = buffer.Buffer;
@@ -98,6 +100,8 @@ type AppState = {
     agentConsole: boolean
   }
   fileHandle: FileSystemFileHandle | null
+  openLayersRenderer: typeof MapOpenLayers | null
+  openLayersError: boolean
 };
 
 type StyleSpecificationWithOptionalId = StyleSpecification & {id?: string};
@@ -108,6 +112,7 @@ export class App extends React.Component<any, AppState> {
   layerWatcher: LayerWatcher;
   mapInstance: Map | null = null;
   datasetStore = new DatasetStore();
+  openLayersLoadStarted = false;
 
   constructor(props: any) {
     super(props);
@@ -153,6 +158,8 @@ export class App extends React.Component<any, AppState> {
         debugToolbox: false,
       },
       fileHandle: null,
+      openLayersRenderer: null,
+      openLayersError: false,
     };
 
     this.layerWatcher = new LayerWatcher({
@@ -286,11 +293,34 @@ export class App extends React.Component<any, AppState> {
     await this.datasetStore.init();
     document.body.dataset.maputnikReady = "true";
     window.addEventListener("keydown", this.handleKeyPress);
+    this.loadOpenLayersRenderer();
+  }
+
+  componentDidUpdate() {
+    // The renderer is named by the style, and the style is restored
+    // asynchronously after mount, so this cannot be decided on mount alone.
+    this.loadOpenLayersRenderer();
   }
 
   componentWillUnmount() {
     delete document.body.dataset.maputnikReady;
     window.removeEventListener("keydown", this.handleKeyPress);
+  }
+
+  loadOpenLayersRenderer() {
+    if (this.openLayersLoadStarted || this._getRenderer() !== "ol") {
+      return;
+    }
+
+    this.openLayersLoadStarted = true;
+
+    import("./MapOpenLayers").then(
+      (module) => this.setState({ openLayersRenderer: module.MapOpenLayers }),
+      (error) => {
+        console.error("Failed to load the OpenLayers renderer", error);
+        this.setState({ openLayersError: true });
+      }
+    );
   }
 
   saveStyle(snapshotStyle: StyleSpecificationWithId) {
@@ -719,17 +749,27 @@ export class App extends React.Component<any, AppState> {
     };
 
     const renderer = this._getRenderer();
+    const OpenLayers = this.state.openLayersRenderer;
+
+    // The OpenLayers renderer arrives asynchronously, once the style naming it
+    // has loaded the bundle. Until then the map panel shows the progress.
+    const openLayersPending = renderer === "ol" && !OpenLayers;
 
     let mapElement;
 
-    // Check if OL code has been loaded?
-    if(renderer === "ol") {
-      mapElement = <MapOpenLayers
+    if(renderer === "ol" && OpenLayers) {
+      mapElement = <OpenLayers
         {...mapProps}
         onChange={this.onMapChange}
         debugToolbox={this.state.openlayersDebugOptions.debugToolbox}
         onLayerSelect={(layerId) => this.onLayerSelect(+layerId)}
       />;
+    } else if (openLayersPending) {
+      mapElement = <div className="maputnik-map__error-message">
+        {this.state.openLayersError
+          ? i18next.t("Failed to load the OpenLayers renderer. Reload the page to try again.")
+          : i18next.t("Loading the OpenLayers renderer…")}
+      </div>;
     } else {
 
       mapElement = <MapMaplibreGl {...mapProps}
@@ -751,7 +791,13 @@ export class App extends React.Component<any, AppState> {
       elementStyle.filter = `url('#${filterName}')`;
     }
 
-    return <div style={elementStyle} className="maputnik-map__container" data-wd-key="maplibre:container">
+    return <div
+      style={elementStyle}
+      className={classnames("maputnik-map__container", {
+        "maputnik-map__container--error": openLayersPending
+      })}
+      data-wd-key="maplibre:container"
+    >
       {mapElement}
     </div>;
   }
