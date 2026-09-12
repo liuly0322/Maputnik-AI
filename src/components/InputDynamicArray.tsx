@@ -1,5 +1,5 @@
 import React from "react";
-import capitalize from "lodash.capitalize";
+import { capitalize } from "lodash-es";
 import {MdDelete} from "react-icons/md";
 import { type WithTranslation, withTranslation } from "react-i18next";
 

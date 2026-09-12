@@ -1,6 +1,6 @@
 import React, {type JSX} from "react";
 import classnames from "classnames";
-import lodash from "lodash";
+import { isEqual } from "lodash-es";
 import {
   DndContext,
   PointerSensor,
@@ -168,7 +168,7 @@ class LayerListContainerInternal extends React.Component<LayerListContainerInter
       }
       return out;
     }
-    const layersEqual = lodash.isEqual(
+    const layersEqual = isEqual(
       nextProps.layers.map(getRequiredProps),
       this.props.layers.map(getRequiredProps),
     );
@@ -183,7 +183,7 @@ class LayerListContainerInternal extends React.Component<LayerListContainerInter
 
     // Compare the props without layers because we've already compared them
     // efficiently above.
-    const propsEqual = lodash.isEqual(
+    const propsEqual = isEqual(
       withoutLayers(this.props),
       withoutLayers(nextProps)
     );
@@ -217,7 +217,7 @@ class LayerListContainerInternal extends React.Component<LayerListContainerInter
       idx += layers.length;
     }
 
-    if (!lodash.isEqual(collapsedGroups, this.state.collapsedGroups)) {
+    if (!isEqual(collapsedGroups, this.state.collapsedGroups)) {
       this.setState({ collapsedGroups });
     }
   }

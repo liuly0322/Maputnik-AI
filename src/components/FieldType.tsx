@@ -4,7 +4,7 @@ import { Block } from "./Block";
 import { InputSelect } from "./InputSelect";
 import { InputString } from "./InputString";
 import { type WithTranslation, withTranslation } from "react-i18next";
-import { startCase } from "lodash";
+import { startCase } from "lodash-es";
 
 type FieldTypeInternalProps = {
   value: string

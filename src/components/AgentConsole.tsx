@@ -1,6 +1,6 @@
 import React from "react";
-import cloneDeep from "lodash.clonedeep";
-import isEqual from "lodash.isequal";
+import { cloneDeep } from "lodash-es";
+import { isEqual } from "lodash-es";
 import {type WithTranslation, withTranslation} from "react-i18next";
 import type {Map as MapLibreMap, StyleSpecification} from "maplibre-gl";
 

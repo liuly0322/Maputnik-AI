@@ -1,4 +1,4 @@
-import isEqual from "lodash.isequal";
+import { isEqual } from "lodash-es";
 import type {StyleSpecification} from "maplibre-gl";
 
 export type StyleChangeKind = "added" | "removed" | "changed";

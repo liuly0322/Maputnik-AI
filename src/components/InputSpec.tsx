@@ -9,7 +9,7 @@ import { InputDynamicArray, type InputDynamicArrayProps } from "./InputDynamicAr
 import { InputFont, type InputFontProps } from "./InputFont";
 import { InputAutocomplete, type InputAutocompleteProps } from "./InputAutocomplete";
 import { InputEnum, type InputEnumProps } from "./InputEnum";
-import capitalize from "lodash.capitalize";
+import { capitalize } from "lodash-es";
 
 const iconProperties = ["background-pattern", "fill-pattern", "line-pattern", "fill-extrusion-pattern", "icon-image"];
 

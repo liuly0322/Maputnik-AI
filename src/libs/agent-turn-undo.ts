@@ -1,4 +1,4 @@
-import cloneDeep from "lodash.clonedeep";
+import { cloneDeep } from "lodash-es";
 import type {StyleSpecification} from "maplibre-gl";
 
 import type {AgentInputItem} from "./agent-client";

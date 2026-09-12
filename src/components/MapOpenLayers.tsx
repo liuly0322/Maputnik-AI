@@ -1,5 +1,5 @@
 import React from "react";
-import {throttle} from "lodash";
+import { throttle } from "lodash-es";
 import { type WithTranslation, withTranslation } from "react-i18next";
 
 import { FeatureLayerPopup as MapMaplibreGlLayerPopup } from "./MapMaplibreGlLayerPopup";

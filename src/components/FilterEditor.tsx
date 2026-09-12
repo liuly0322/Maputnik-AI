@@ -1,7 +1,7 @@
 import React from "react";
 import { TbMathFunction } from "react-icons/tb";
 import { PiListPlusBold } from "react-icons/pi";
-import {isEqual} from "lodash";
+import { isEqual } from "lodash-es";
 import {type ExpressionSpecification, type LegacyFilterSpecification} from "maplibre-gl";
 import {migrate, convertFilter} from "@maplibre/maplibre-gl-style-spec";
 import latest from "@maplibre/maplibre-gl-style-spec/dist/latest.json";

@@ -1,7 +1,7 @@
 import React from "react";
 import Color from "color";
 import {ChromePicker, type ColorResult} from "react-color";
-import lodash from "lodash";
+import { throttle } from "lodash-es";
 
 function formatColor(color: ColorResult): string {
   const rgb = color.rgb;
@@ -27,7 +27,7 @@ export class InputColor extends React.Component<InputColorProps> {
 
   constructor (props: InputColorProps) {
     super(props);
-    this.onChangeNoCheck = lodash.throttle(this.onChangeNoCheck, 1000/30);
+    this.onChangeNoCheck = throttle(this.onChangeNoCheck, 1000/30);
   }
 
   onChangeNoCheck(v: string) {

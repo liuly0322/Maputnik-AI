@@ -1,11 +1,11 @@
 import React from "react";
 import classnames from "classnames";
 import i18next from "i18next";
-import cloneDeep from "lodash.clonedeep";
-import clamp from "lodash.clamp";
+import { cloneDeep } from "lodash-es";
+import { clamp } from "lodash-es";
 import buffer from "buffer";
-import get from "lodash.get";
-import {unset} from "lodash";
+import { get } from "lodash-es";
+import { unset } from "lodash-es";
 import {arrayMoveMutable} from "array-move";
 import hash from "string-hash";
 import { PMTiles } from "pmtiles";
@@ -38,7 +38,7 @@ import { createStyleStore, type IStyleStore } from "../libs/store/style-store-fa
 import { RevisionStore } from "../libs/revisions";
 import { LayerWatcher } from "../libs/layerwatcher";
 import tokens from "../config/tokens";
-import isEqual from "lodash.isequal";
+import { isEqual } from "lodash-es";
 import { type MapOptions } from "maplibre-gl";
 import { type MappedError, type OnStyleChangedOpts, type StyleSpecificationWithId } from "../libs/definitions";
 import { DatasetStore } from "../libs/dataset-store";

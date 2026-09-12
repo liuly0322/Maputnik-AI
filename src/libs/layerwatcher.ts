@@ -1,5 +1,5 @@
-import throttle from "lodash.throttle";
-import isEqual from "lodash.isequal";
+import { throttle } from "lodash-es";
+import { isEqual } from "lodash-es";
 import { type Map } from "maplibre-gl";
 
 export type LayerWatcherOptions = {

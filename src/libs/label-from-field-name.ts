@@ -1,4 +1,4 @@
-import capitalize from "lodash.capitalize";
+import { capitalize } from "lodash-es";
 
 export function labelFromFieldName(fieldName: string) {
   let label;
