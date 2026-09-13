@@ -236,6 +236,12 @@
   overflow-x: auto;
 }
 
+.SpecDoc__doc {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .SpecDoc__sdk-support__table {
   width: 100%;
   margin-top: vars.$margin-3;
@@ -251,7 +257,7 @@
   margin-top: vars.$margin-3;
 }
 
-.SpecDoc__values code, .SpecDoc__doc code {
+.SpecDoc__values code {
   background: vars.$color-midgray;
   padding: 0.1em 0.3em;
   border-radius: 2px;

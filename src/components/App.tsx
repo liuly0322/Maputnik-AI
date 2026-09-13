@@ -40,11 +40,11 @@ import tokens from "../config/tokens";
 import { isEqual } from "lodash-es";
 import { type MapOptions } from "maplibre-gl";
 import { type MappedError, type OnStyleChangedOpts, type StyleSpecificationWithId } from "../libs/definitions";
-import { DatasetStore } from "../libs/dataset-store";
 import type { MapOpenLayers } from "./MapOpenLayers";
 
-// Keep the agent workspace out of the initial bundle, while still loading it
-// by default because the lazy component is rendered with the other modals.
+// Keep the agent workspace out of the initial bundle. It is rendered after the
+// first screen has had a chance to paint, which starts the same import as a
+// background prefetch without adding it to the initial module graph.
 const LazyModalAgentWorkspace = React.lazy(() =>
   import("./modals/ModalAgentWorkspace").then(({ModalAgentWorkspace}) => ({
     default: ModalAgentWorkspace,
@@ -121,6 +121,7 @@ type AppState = {
   fileHandle: FileSystemFileHandle | null
   openLayersRenderer: typeof MapOpenLayers | null
   openLayersError: boolean
+  agentWorkspaceLoadStarted: boolean
 };
 
 type StyleSpecificationWithOptionalId = StyleSpecification & {id?: string};
@@ -130,8 +131,9 @@ export class App extends React.Component<any, AppState> {
   styleStore: IStyleStore | null = null;
   layerWatcher: LayerWatcher;
   mapInstance: Map | null = null;
-  datasetStore = new DatasetStore();
   openLayersLoadStarted = false;
+  agentWorkspaceLoadFrame: number | null = null;
+  agentWorkspaceLoadTimer: number | null = null;
 
   constructor(props: any) {
     super(props);
@@ -179,6 +181,7 @@ export class App extends React.Component<any, AppState> {
       fileHandle: null,
       openLayersRenderer: null,
       openLayersError: false,
+      agentWorkspaceLoadStarted: false,
     };
 
     this.layerWatcher = new LayerWatcher({
@@ -200,10 +203,6 @@ export class App extends React.Component<any, AppState> {
 
   onFeatureSelect = (selection: Feature[]) => {
     this.setState({selection});
-  };
-
-  onDatasetsChange = () => {
-    this.forceUpdate();
   };
 
   configureKeyboardShortcuts = () => {
@@ -309,10 +308,10 @@ export class App extends React.Component<any, AppState> {
 
   async componentDidMount() {
     this.styleStore = await createStyleStore((mapStyle, opts) => this.onStyleChanged(mapStyle, opts));
-    await this.datasetStore.init();
     document.body.dataset.maputnikReady = "true";
     window.addEventListener("keydown", this.handleKeyPress);
     this.loadOpenLayersRenderer();
+    this.queueAgentWorkspaceLoad();
   }
 
   componentDidUpdate() {
@@ -324,7 +323,39 @@ export class App extends React.Component<any, AppState> {
   componentWillUnmount() {
     delete document.body.dataset.maputnikReady;
     window.removeEventListener("keydown", this.handleKeyPress);
+    if (this.agentWorkspaceLoadFrame !== null) {
+      window.cancelAnimationFrame(this.agentWorkspaceLoadFrame);
+    }
+    if (this.agentWorkspaceLoadTimer !== null) {
+      window.clearTimeout(this.agentWorkspaceLoadTimer);
+    }
   }
+
+  queueAgentWorkspaceLoad = () => {
+    if (this.state.agentWorkspaceLoadStarted
+      || this.agentWorkspaceLoadFrame !== null
+      || this.agentWorkspaceLoadTimer !== null) {
+      return;
+    }
+
+    const startLoading = () => {
+      this.agentWorkspaceLoadTimer = null;
+      this.setState({agentWorkspaceLoadStarted: true});
+    };
+
+    // Let the initial layout paint before mounting the lazy boundary. The
+    // timeout after requestAnimationFrame puts the import in the next task,
+    // while still starting it immediately after the first visible frame.
+    if (typeof window.requestAnimationFrame === "function") {
+      this.agentWorkspaceLoadFrame = window.requestAnimationFrame(() => {
+        this.agentWorkspaceLoadFrame = null;
+        this.agentWorkspaceLoadTimer = window.setTimeout(startLoading, 0);
+      });
+    }
+    else {
+      this.agentWorkspaceLoadTimer = window.setTimeout(startLoading, 0);
+    }
+  };
 
   loadOpenLayersRenderer() {
     if (this.openLayersLoadStarted || this._getRenderer() !== "ol") {
@@ -1055,18 +1086,18 @@ export class App extends React.Component<any, AppState> {
         isOpen={this.state.isOpen.globalState}
         onOpenToggle={() => this.toggleModal("globalState")}
       />
-      <React.Suspense fallback={this.state.isOpen.agentConsole ? <AgentWorkspaceLoading /> : null}>
-        <LazyModalAgentWorkspace
-          isOpen={this.state.isOpen.agentConsole}
-          onOpenToggle={() => this.toggleModal("agentConsole")}
-          getMap={this.getAgentMap}
-          getMaputnikStyle={this.getAgentMaputnikStyle}
-          updateMaputnikStyle={this.updateAgentMaputnikStyle}
-          datasetStore={this.datasetStore}
-          onDatasetsChange={this.onDatasetsChange}
-          renderer={this._getRenderer()}
-        />
-      </React.Suspense>
+      {(this.state.agentWorkspaceLoadStarted || this.state.isOpen.agentConsole) &&
+        <React.Suspense fallback={this.state.isOpen.agentConsole ? <AgentWorkspaceLoading /> : null}>
+          <LazyModalAgentWorkspace
+            isOpen={this.state.isOpen.agentConsole}
+            onOpenToggle={() => this.toggleModal("agentConsole")}
+            getMap={this.getAgentMap}
+            getMaputnikStyle={this.getAgentMaputnikStyle}
+            updateMaputnikStyle={this.updateAgentMaputnikStyle}
+            renderer={this._getRenderer()}
+          />
+        </React.Suspense>
+      }
     </div>;
 
     return <AppLayout
