@@ -132,8 +132,6 @@ export class App extends React.Component<any, AppState> {
   layerWatcher: LayerWatcher;
   mapInstance: Map | null = null;
   openLayersLoadStarted = false;
-  agentWorkspaceLoadFrame: number | null = null;
-  agentWorkspaceLoadTimer: number | null = null;
 
   constructor(props: any) {
     super(props);
@@ -311,7 +309,9 @@ export class App extends React.Component<any, AppState> {
     document.body.dataset.maputnikReady = "true";
     window.addEventListener("keydown", this.handleKeyPress);
     this.loadOpenLayersRenderer();
-    this.queueAgentWorkspaceLoad();
+    window.setTimeout(() => {
+      this.setState({agentWorkspaceLoadStarted: true});
+    }, 0);
   }
 
   componentDidUpdate() {
@@ -323,38 +323,6 @@ export class App extends React.Component<any, AppState> {
   componentWillUnmount() {
     delete document.body.dataset.maputnikReady;
     window.removeEventListener("keydown", this.handleKeyPress);
-    if (this.agentWorkspaceLoadFrame !== null) {
-      window.cancelAnimationFrame(this.agentWorkspaceLoadFrame);
-    }
-    if (this.agentWorkspaceLoadTimer !== null) {
-      window.clearTimeout(this.agentWorkspaceLoadTimer);
-    }
-  }
-
-  queueAgentWorkspaceLoad = () => {
-    if (this.state.agentWorkspaceLoadStarted
-      || this.agentWorkspaceLoadFrame !== null
-      || this.agentWorkspaceLoadTimer !== null) {
-      return;
-    }
-
-    const startLoading = () => {
-      this.agentWorkspaceLoadTimer = null;
-      this.setState({agentWorkspaceLoadStarted: true});
-    };
-
-    // Let the initial layout paint before mounting the lazy boundary. The
-    // timeout after requestAnimationFrame puts the import in the next task,
-    // while still starting it immediately after the first visible frame.
-    if (typeof window.requestAnimationFrame === "function") {
-      this.agentWorkspaceLoadFrame = window.requestAnimationFrame(() => {
-        this.agentWorkspaceLoadFrame = null;
-        this.agentWorkspaceLoadTimer = window.setTimeout(startLoading, 0);
-      });
-    }
-    else {
-      this.agentWorkspaceLoadTimer = window.setTimeout(startLoading, 0);
-    }
   };
 
   loadOpenLayersRenderer() {
