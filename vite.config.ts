@@ -1,6 +1,7 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import {defineConfig} from "vite";
 import istanbul from "vite-plugin-istanbul";
+import {compactMapLibreStyleSpec} from "./build/compact-maplibre-style-spec";
 
 export default defineConfig(({ command, mode }) => ({
   server: {
@@ -13,6 +14,7 @@ export default defineConfig(({ command, mode }) => ({
     },
   },
   plugins: [
+    compactMapLibreStyleSpec(),
     react(),
     istanbul({
       requireEnv: true,
