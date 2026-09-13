@@ -230,27 +230,10 @@
   position: relative;
 }
 
-.SpecDoc__sdk-support {
-  position: relative;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
 .SpecDoc__doc {
   max-width: 100%;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-}
-
-.SpecDoc__sdk-support__table {
-  width: 100%;
-  margin-top: vars.$margin-3;
-
-  td, th {
-    border: solid 1px vars.$color-midgray;
-    padding: 4px 6px;
-    white-space: nowrap;
-  }
 }
 
 .SpecDoc__values li {
