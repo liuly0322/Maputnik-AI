@@ -174,7 +174,7 @@ export class App extends React.Component<any, AppState> {
         debug: false,
         globalState: false,
         codeEditor: false,
-        agentConsole: false
+        agentConsole: true
       },
       maplibreGlDebugOptions: {
         showTileBoundaries: false,
@@ -1003,6 +1003,7 @@ export class App extends React.Component<any, AppState> {
       layers={layers}
       sources={this.state.sources}
       errors={this.state.errors}
+      onOpenStyle={() => this.toggleModal("open")}
     />;
 
     const layerEditor = selectedLayer && !this.state.layerEditorCollapsed ? <LayerEditor

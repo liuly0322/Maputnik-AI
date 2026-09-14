@@ -42,6 +42,20 @@
     overflow-y: visible;
   }
 
+  // Shown while the style has no layers at all, where the list would otherwise
+  // be an empty column.
+  &-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: vars.$margin-3;
+    padding: vars.$margin-4 vars.$margin-3;
+
+    p {
+      margin: 0;
+    }
+  }
+
   &-item-handle {
     flex: 1;
     display: flex;

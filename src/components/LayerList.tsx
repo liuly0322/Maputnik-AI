@@ -34,6 +34,7 @@ type LayerListContainerProps = {
   onLayerVisibilityToggle(...args: unknown[]): unknown
   sources: Record<string, SourceSpecification & {layers: string[]}>;
   errors: MappedError[]
+  onOpenStyle(): void
 };
 type LayerListContainerInternalProps = LayerListContainerProps & WithTranslation;
 
@@ -350,6 +351,19 @@ class LayerListContainerInternal extends React.Component<LayerListContainerInter
           </div>
         </div>
       </header>
+      {this.props.layers.length === 0 && <div
+        className="maputnik-layer-list-empty"
+        data-wd-key="layer-list:empty"
+      >
+        <p>{t("This map has no layers yet.")}</p>
+        <button
+          className="maputnik-button maputnik-wide-button"
+          onClick={this.props.onOpenStyle}
+          data-wd-key="layer-list:empty-open-style"
+        >
+          {t("Open a preset style")}
+        </button>
+      </div>}
       <div
         role="navigation"
         aria-label={t("Layers list")}
