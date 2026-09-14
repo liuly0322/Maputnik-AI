@@ -1,5 +1,5 @@
 import type {TFunction} from "i18next";
-import {MdArrowDropDown, MdDelete} from "react-icons/md";
+import {MdAdd, MdArrowDropDown, MdDelete} from "react-icons/md";
 import {Wrapper, Button, Menu, MenuItem} from "react-aria-menubutton";
 
 import type {AgentSession} from "../libs/agent-session-store";
@@ -57,9 +57,10 @@ export function AgentSessionPicker(props: AgentSessionPickerProps) {
         <li>
           <MenuItem
             value={NEW_SESSION_VALUE}
-            className="agent-session-picker__item"
+            className="agent-session-picker__item agent-session-picker__new"
             data-wd-key="agent-console:new-session"
           >
+            <MdAdd />
             {t("New session")}
           </MenuItem>
         </li>

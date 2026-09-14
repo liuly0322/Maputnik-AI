@@ -414,9 +414,13 @@
 .agent-session-picker__menu {
   position: absolute;
   top: 100%;
-  left: 0;
+  // Anchored to the picker's right edge, not its left: the picker sits at the
+  // right of the header, so a left-anchored menu grows past the panel and its
+  // delete buttons — which sit at the end of each row — get clipped.
+  right: 0;
   z-index: 10;
-  min-width: 200px;
+  // At least as wide as the trigger, and wide enough for a title on its own.
+  min-width: max(200px, 100%);
   max-width: 320px;
   max-height: 320px;
   overflow-y: auto;
@@ -426,6 +430,23 @@
   border-radius: 2px;
   background-color: vars.$color-black;
   list-style: none;
+}
+
+// Reads as the one action in a list of things, rather than as one more session:
+// a leading icon says "this creates", and the rule closes the list below it.
+// It deliberately keeps the ordinary item colour, which leaves the emphasis
+// hierarchy to the active session's brighter, bolder row.
+.agent-session-picker__new {
+  display: flex;
+  align-items: center;
+  gap: vars.$margin-2;
+  border-bottom: 1px solid vars.$color-midgray;
+
+  svg {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+  }
 }
 
 .agent-session-picker__row {
