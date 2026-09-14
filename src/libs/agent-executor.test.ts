@@ -18,6 +18,38 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * Stands in for the live map: enough of its contract for the executor, plus a
+ * way to raise what MapLibre raises for a change it refuses to apply.
+ */
+function createMapStub() {
+  const liveStyle: any = {version: 8, sources: {}, layers: []};
+  const listeners = new Map<string, Set<(event: any) => void>>();
+
+  const map: any = {
+    liveStyle,
+    on(type: string, listener: (event: any) => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(listener);
+    },
+    off(type: string, listener: (event: any) => void) {
+      listeners.get(type)?.delete(listener);
+    },
+    addLayer(layer: any) {
+      liveStyle.layers.push(layer);
+    },
+    getStyle: () => liveStyle,
+    errorListenerCount: () => listeners.get("error")?.size ?? 0,
+    raiseError(message: string) {
+      for (const listener of listeners.get("error") ?? []) {
+        listener({error: new Error(message)});
+      }
+    },
+  };
+
+  return map;
+}
+
 describe("executeAgentJavaScript", () => {
   const context: any = {
     map: null,
@@ -45,19 +77,7 @@ describe("executeAgentJavaScript", () => {
 
 describe("live map synchronization", () => {
   it("synchronizes the final map style exactly once", async () => {
-    const liveStyle: any = {
-      version: 8,
-      sources: {},
-      layers: [],
-    };
-    const map: any = {
-      addLayer(layer: any) {
-        liveStyle.layers.push(layer);
-      },
-      getStyle() {
-        return liveStyle;
-      },
-    };
+    const map = createMapStub();
     const updateMaputnikStyle = vi.fn();
     const context = {
       map,
@@ -71,17 +91,11 @@ describe("live map synchronization", () => {
     `, context);
 
     expect(updateMaputnikStyle).toHaveBeenCalledTimes(1);
-    expect(updateMaputnikStyle).toHaveBeenCalledWith(liveStyle);
+    expect(updateMaputnikStyle).toHaveBeenCalledWith(map.liveStyle);
   });
 
   it("synchronizes mutations when the script throws", async () => {
-    const liveStyle: any = {version: 8, sources: {}, layers: []};
-    const map: any = {
-      addLayer(layer: any) {
-        liveStyle.layers.push(layer);
-      },
-      getStyle: () => liveStyle,
-    };
+    const map = createMapStub();
     const updateMaputnikStyle = vi.fn();
     const context = {map, updateMaputnikStyle, datasets};
 
@@ -96,6 +110,44 @@ describe("live map synchronization", () => {
     ]);
   });
 
+});
+
+describe("map errors", () => {
+  it("reports what MapLibre raised alongside the result", async () => {
+    const map = createMapStub();
+    const context = {map, updateMaputnikStyle: vi.fn(), datasets};
+
+    const result = await executeAgentJavaScript(`
+      map.raiseError("layers.towers: unknown property");
+      return "added 4 layers";
+    `, context);
+
+    expect(result).toContain("added 4 layers");
+    expect(result).toContain("MapLibre reported 1 error while this ran:");
+    expect(result).toContain("- layers.towers: unknown property");
+  });
+
+  it("collapses a repeated error and counts the rest", async () => {
+    const map = createMapStub();
+    const context = {map, updateMaputnikStyle: vi.fn(), datasets};
+
+    const result = await executeAgentJavaScript(`
+      for (let i = 0; i < 8; i += 1) map.raiseError("layers.repeated: invalid");
+      return "done";
+    `, context);
+
+    expect(result).toContain("MapLibre reported 1 error while this ran:");
+    expect(result.match(/layers\.repeated/g)).toHaveLength(1);
+  });
+
+  it("stops listening once the call is over", async () => {
+    const map = createMapStub();
+    const context = {map, updateMaputnikStyle: vi.fn(), datasets};
+
+    await executeAgentJavaScript("return 'done';", context);
+
+    expect(map.errorListenerCount()).toBe(0);
+  });
 });
 
 describe("truncateToolOutput", () => {

@@ -66,6 +66,9 @@ describe("buildAgentInstructions", () => {
     let liveStyle: any = {version: 8, sources: {}, layers: []};
     let committedStyle: any;
     const map: any = {
+      // A map raises style failures as `error` events; this stub has none to raise.
+      on: () => undefined,
+      off: () => undefined,
       getCenter: () => ({lng: 120, lat: 30}),
       getZoom: () => 6,
       getStyle: () => liveStyle,

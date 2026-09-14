@@ -447,6 +447,43 @@ describe("agent console", () => {
     await then(get.element(".agent-console-tool-output")).shouldContainText("tool-only result");
   });
 
+  test("reports a style change the map refused to apply", async () => {
+    const page = currentPage();
+    const agentCode = 'map.addLayer({id: "broken", type: "not-a-layer-type"}); return "called addLayer";';
+    await page.route("http://localhost:8888/responses", route => {
+      const body = route.request().postDataJSON();
+      const hasFunctionCallOutput = (body.input ?? []).some((item: any) => item.type === "function_call_output");
+      if (hasFunctionCallOutput) {
+        return route.fulfill({contentType: "text/event-stream", body: ""});
+      }
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: [
+          "event: response.output_item.done",
+          `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"bad_layer","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code: agentCode}))}}}`,
+          "",
+          "",
+        ].join("\n"),
+      });
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console-group:API settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Add a layer");
+    await when.click("agent-console:send");
+
+    // addLayer returns normally for a rejected layer, so the only way the model
+    // can learn it failed is if the map's error reaches the tool output.
+    await when.click("agent-console:tool-details-toggle");
+    await then(get.element(".agent-console-tool-output")).shouldContainText("called addLayer");
+    await then(get.element(".agent-console-tool-output")).shouldContainText("MapLibre reported");
+    await then(get.element(".agent-console-tool-output")).shouldContainText("errors while this ran");
+    await then(get.element(".agent-console-tool-output")).shouldContainText("layers.broken.type");
+  });
+
   test("wraps long unbroken messages without widening the console", async () => {
     await when.click("nav:agent-workspace");
     await when.click("agent-console-group:API settings");

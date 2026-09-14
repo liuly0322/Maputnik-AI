@@ -9,6 +9,47 @@ export type AgentExecutionContext = {
 
 export const MAX_TOOL_OUTPUT_UTF8_BYTES = 100_000;
 
+/** More than this and the model is reading a flood rather than a message. */
+const MAX_REPORTED_MAP_ERRORS = 5;
+
+/**
+ * Collects the errors MapLibre raises while the code runs. A style or layer
+ * that fails validation does not throw: the call returns, the change is simply
+ * not applied, and the only trace is an `error` event — a channel the tool
+ * result does not otherwise carry. Returns a function that stops collecting
+ * and hands back what it saw.
+ */
+function collectMapErrors(map: Map) {
+  const messages: string[] = [];
+  const onError = (event: {error?: unknown}) => {
+    const message = event.error instanceof Error ? event.error.message : String(event.error ?? "");
+    if (message && !messages.includes(message)) {
+      messages.push(message);
+    }
+  };
+
+  map.on("error", onError);
+  return {
+    messages,
+    stop: () => map.off("error", onError),
+  };
+}
+
+function describeMapErrors(messages: readonly string[]) {
+  if (messages.length === 0) {
+    return "";
+  }
+
+  const reported = messages.slice(0, MAX_REPORTED_MAP_ERRORS);
+  const lines = reported.map(message => `- ${message}`);
+  if (messages.length > reported.length) {
+    lines.push(`- ...and ${messages.length - reported.length} more`);
+  }
+
+  const noun = messages.length === 1 ? "error" : "errors";
+  return `\n\nMapLibre reported ${messages.length} ${noun} while this ran:\n${lines.join("\n")}`;
+}
+
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder();
 
@@ -95,21 +136,29 @@ function sanitizeStyle(style: StyleSpecification): StyleSpecification {
 }
 
 export async function executeAgentJavaScript(code: string, context: AgentExecutionContext) {
+  const errors = context.map ? collectMapErrors(context.map) : null;
   const execute = new Function(
     "map",
     "datasets",
     `return (async () => {\n${code}\n})();`
   );
+
+  let output: string;
   try {
     const result = await execute(
       context.map,
       context.datasets
     );
-    return stringifyResult(result);
+    output = stringifyResult(result);
   }
   finally {
+    // Stopped before the style is synced, so what is reported belongs to the
+    // model's code rather than to the sync that follows it.
+    errors?.stop();
     if (context.map) {
       context.updateMaputnikStyle(sanitizeStyle(context.map.getStyle()));
     }
   }
+
+  return output + describeMapErrors(errors?.messages ?? []);
 }
