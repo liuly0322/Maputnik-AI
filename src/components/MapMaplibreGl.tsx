@@ -123,10 +123,9 @@ class MapMaplibreGlInternal extends React.Component<MapMaplibreGlInternalProps, 
 
     const styleWithTokens = this.props.replaceAccessTokens(this.props.mapStyle);
     if (map) {
-      // Only re-apply the style when the style prop changed: the app replaces
-      // the object on every change, so identity is reliable, and this component
-      // also updates for viewport and option changes, which are no reason to
-      // push the style back over the live map.
+      // Only when the style prop changed. It is replaced on every change, so
+      // identity is reliable, and viewport or option updates are no reason to
+      // push the style back over the map.
       if (prevProps.mapStyle !== this.props.mapStyle) {
         // Maplibre GL now does diffing natively so we don't need to calculate
         // the necessary operations ourselves!

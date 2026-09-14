@@ -913,9 +913,8 @@ export class App extends React.Component<any, AppState> {
     this.setState({
       selectedLayerIndex: index,
       selectedLayerOriginalId: this.state.mapStyle.layers[index].id,
-      // Selecting a layer is a request to edit it, so the drawer comes back
-      // whether the layer was picked in the list, on the map, or in the
-      // message panel.
+      // Selecting a layer brings the drawer back, from the list, the map or
+      // the message panel alike.
       layerEditorCollapsed: false,
     }, this.setStateInUrl);
   };
@@ -928,9 +927,8 @@ export class App extends React.Component<any, AppState> {
     this.setState({agentPanelWidth: clampAgentPanelWidth(width)});
   };
 
-  // Persisting on every pointer move would write to storage dozens of times per
-  // drag, so the resize handle commits once per gesture. The width arrives as
-  // an argument because the state update above has not been applied yet.
+  // Committed once per gesture rather than on every pointer move. The width is
+  // an argument because the update above has not been applied yet.
   onAgentPanelWidthCommit = (width: number) => {
     saveAgentPanelWidth(width);
   };
@@ -1092,9 +1090,8 @@ export class App extends React.Component<any, AppState> {
       />
     </div>;
 
-    // The panel is handed to the layout rather than the modal stack, and stays
-    // mounted once loaded so the conversation survives being toggled. Closing it
-    // only takes the column's width away, which `agentOpen` drives.
+    // Handed to the layout, not the modal stack. Mounted once loaded so the
+    // conversation survives being toggled, which `agentOpen` drives.
     const agentLoaded = this.state.agentWorkspaceLoadStarted || this.state.isOpen.agentConsole;
     const agentPanel = agentLoaded ? <React.Suspense fallback={<AgentWorkspaceLoading />}>
       <LazyAgentWorkspacePanel

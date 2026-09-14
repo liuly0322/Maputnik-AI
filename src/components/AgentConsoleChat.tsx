@@ -34,10 +34,8 @@ type AgentConsoleChatProps = {
 export function AgentConsoleChat(props: AgentConsoleChatProps) {
   const {t} = props;
 
-  // Both actions belong to the turn that just finished, so they sit under it
-  // and go away while the next turn is generating: the invalidation is known
-  // the moment the turn starts, so leaving them on screen would only offer
-  // buttons that cannot work.
+  // These act on the turn that just finished. While the next one generates
+  // they are already known to be invalid, so the row goes.
   const showTurnActions = !props.busy && (props.previewAvailable || props.canUndo);
 
   return <section className="agent-console-chat-card" data-wd-key="agent-console:chat-card">

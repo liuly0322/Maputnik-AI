@@ -2,8 +2,8 @@
 
 @use 'sass:color';
 
-// The console is a single column: the collapsible groups, the map status line,
-// then the conversation, which takes whatever is left.
+// A single column: the settings groups, then the conversation, which takes
+// whatever is left.
 .agent-console {
   display: flex;
   flex-direction: column;
@@ -16,16 +16,15 @@
   overflow: hidden;
 }
 
-// Every section heading in the panel lines up on the same inset. Scoped to the
-// console because the group component is shared with the layer editor, where
-// this variable does not exist.
+// Every section heading lines up on the same inset. Scoped to the console,
+// since the group component is also used by the layer editor.
 .agent-console .maputnik-collapsible-group__button {
   padding-right: var(--agent-gutter);
   padding-left: var(--agent-gutter);
 }
 
-// Takes the height its groups need and only shrinks — growing a scrollbar of
-// its own — when the conversation's floor would otherwise be squeezed away.
+// Takes the height its groups need, shrinking only if the conversation's floor
+// would otherwise be squeezed away.
 .agent-console-groups {
   flex: 0 1 auto;
   min-height: 0;
@@ -39,12 +38,11 @@
   padding: vars.$margin-3;
 }
 
-// No horizontal padding here: the section headers span the panel so their
-// dividers read as section boundaries. The inset lives on the content.
+// No horizontal padding: the section headers span the panel, and the inset
+// lives on the content.
 .agent-console-main {
-  // A zero basis matters: with a content-based one, a long conversation makes
-  // the basis huge and the shrink gets shared with the groups above, which
-  // then grow a scrollbar they do not need.
+  // A zero basis, so a long conversation does not share its shrink with the
+  // groups above.
   flex: 1 1 0;
   min-width: 0;
   // The conversation keeps a usable floor; the groups above shrink instead.
@@ -54,9 +52,7 @@
   gap: vars.$margin-2;
 }
 
-// The conversation sits on a distinctly lighter surface than the settings
-// above it, so the panel reads as two regions rather than one stack of
-// identical section bars. It still has no frame of its own.
+// Lighter than the settings above it, which is what separates the two.
 .agent-console-chat-card {
   position: relative;
   display: flex;
@@ -75,9 +71,7 @@
   min-height: 0;
 }
 
-// Floats over the conversation instead of shrinking it: the diff is something
-// you glance at and dismiss, and taking a column would leave the messages a
-// sliver of a 500px panel.
+// Floats over the conversation rather than taking a column from it.
 .agent-style-change-preview {
   position: absolute;
   top: 0;
@@ -261,10 +255,8 @@
   }
 }
 
-// The console lives in a resizable dock now, so its headings follow the panel
-// chrome rather than the modal display sizes and margins the global `h1` rule
-// gives them. The margin matters: it otherwise pushes the header buttons out of
-// line with the title they sit beside.
+// Panel-sized headings. The margin matters: the global `h1` one would push the
+// header buttons out of line with the title they sit beside.
 .agent-console h1 {
   margin: 0;
   font-size: vars.$font-size-4;
@@ -280,15 +272,13 @@
   flex-shrink: 0;
   padding: vars.$margin-2 var(--agent-gutter);
   border-bottom: 1px solid vars.$color-midgray;
-  // Lighter than the conversation below it, and lighter still than the group
-  // headings above, so it reads as the top of the conversation rather than as
-  // one more configuration bar.
+  // Lighter than both the conversation below and the group headings above, so
+  // it opens the conversation rather than continuing the settings.
   background-color: color.adjust(vars.$color-gray, $lightness: 7%);
 }
 
-// The conversation's two bright surfaces sit close enough to the button fill
-// that a plain button loses its edge on them, so these carry a border, as the
-// turn actions do.
+// A border, as the turn actions have: the fill alone is too close to these
+// surfaces to read.
 .agent-console-chat-header .maputnik-button:not(.maputnik-white-button),
 .agent-console-composer .maputnik-button:not(.maputnik-white-button) {
   border: 1px solid vars.$color-lowgray;

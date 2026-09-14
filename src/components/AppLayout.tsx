@@ -28,17 +28,16 @@ class AppLayoutInternal extends React.Component<AppLayoutInternalProps> {
     document.body.dir = this.props.i18n.dir();
 
     // The drawer exists only when there is a layer to edit and the user has not
-    // collapsed it. Its absence is what hands the width back to the map, and
-    // the class below tells the fixed bottom panel how far the side panels
-    // reach, since that panel cannot take part in the flex row.
+    // collapsed it. The class below gives the fixed bottom panel the offset it
+    // cannot take from the flex row.
     const showDrawer = !this.props.codeEditor && Boolean(this.props.layerEditor);
     const layoutClassName = classnames("maputnik-layout", {
       "maputnik-layout--code-editor": Boolean(this.props.codeEditor),
       "maputnik-layout--drawer-collapsed": !this.props.codeEditor && !showDrawer,
     });
 
-    // The agent column is always mounted once loaded, so an open panel sets the
-    // width and a closed one leaves the stylesheet default of 0.
+    // An open panel sets the column's width; a closed one leaves the
+    // stylesheet default of 0, since the column stays mounted.
     const layoutStyle: LayoutStyle | undefined = this.props.agentOpen
       ? {"--layout-agent-width": `${this.props.agentWidth}px`}
       : undefined;
