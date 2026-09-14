@@ -177,12 +177,17 @@ export class MaputnikDriver {
     },
 
     collapseGroupInLayerEditor: async (index = 0) => {
-      await this.helper.get.element(".maputnik-layer-editor-group__button").nth(index).click();
+      await this.helper.get.element(".maputnik-collapsible-group__button").nth(index).click();
     },
 
     /** Expands/collapses a layer-editor group by its title, e.g. "Paint properties". */
     toggleGroupInLayerEditor: async (title: string) => {
       await this.helper.when.click("layer-editor-group:" + title);
+    },
+
+    /** Opens the agent console's session menu, which closes again on any selection. */
+    openSessionPicker: async () => {
+      await this.helper.when.click("agent-console:session-picker");
     },
 
     /**

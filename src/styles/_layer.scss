@@ -198,7 +198,7 @@
 }
 
 // FILTER EDITOR
-.maputnik-layer-editor-group {
+.maputnik-collapsible-group {
   font-weight: bold;
   font-size: vars.$font-size-5;
   background-color: color.adjust(vars.$color-black, $lightness: 2%);
@@ -230,11 +230,11 @@
   }
 
   &__button[aria-expanded="true"] {
-    .maputnik-layer-editor-group__button__icon--up {
+    .maputnik-collapsible-group__button__icon--up {
       display: none;
     }
 
-    .maputnik-layer-editor-group__button__icon--down {
+    .maputnik-collapsible-group__button__icon--down {
       display: block;
     }
   }
@@ -327,6 +327,29 @@
 
   &__info {
     min-width: 28px;
+    display: flex;
+    align-items: center;
+  }
+
+  &__collapse {
+    // Buttons do not inherit `color` (the UA stylesheet gives them
+    // `buttontext`), so the icon needs it set explicitly here rather than
+    // relying on an ambient IconContext.
+    color: vars.$color-lowgray;
+    background: transparent;
+    border: none;
+    padding: 0;
+    line-height: 0;
+    cursor: pointer;
+
+    svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    &:hover svg {
+      fill: vars.$color-white;
+    }
   }
 }
 

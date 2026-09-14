@@ -19,15 +19,13 @@ import {createDatasetWorkspace} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 import {AgentConsoleChat} from "./AgentConsoleChat";
 import {AgentConsoleComposer} from "./AgentConsoleComposer";
-import {AgentConsoleSidebar} from "./AgentConsoleSidebar";
+import {AgentConsoleGroups} from "./AgentConsoleGroups";
 
 type AgentConsoleInternalProps = {
   getMap(): MapLibreMap | null;
   getMaputnikStyle(): StyleSpecification;
   updateMaputnikStyle(style: StyleSpecification): void;
   datasetStore: DatasetStore;
-  onOpenData(): void;
-  renderer: "mlgljs" | "ol";
 } & WithTranslation;
 
 type AgentConsoleInternalState = {
@@ -39,8 +37,8 @@ type AgentConsoleInternalState = {
   sessions: AgentSession[];
   sessionsReady: boolean;
   activeSessionId: string | null;
-  settingsOpen: boolean;
-  sidebarOpen: boolean;
+  /** True when the map shows something other than the active session's saved style. */
+  styleDrifted: boolean;
   stylePreviewOpen: boolean;
   busy: boolean;
   error?: string;
@@ -122,8 +120,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       sessions: [],
       sessionsReady: false,
       activeSessionId: null,
-      settingsOpen: false,
-      sidebarOpen: true,
+      styleDrifted: false,
       stylePreviewOpen: false,
       busy: false,
     };
@@ -303,6 +300,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         sessions: state.sessions.map(candidate => candidate.id === sessionId
           ? {...candidate, updatedAt, styleCheckpoint}
           : candidate),
+        // The checkpoint now holds the live style, so the session it belongs to
+        // can no longer be showing something else.
+        styleDrifted: sessionId === state.activeSessionId ? false : state.styleDrifted,
       }));
     }
     catch (error) {
@@ -311,10 +311,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         error: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
-  };
-
-  onToggleSidebar = () => {
-    this.setState(state => ({sidebarOpen: !state.sidebarOpen}));
   };
 
   onNewSession = () => {
@@ -328,13 +324,34 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       styleCheckpoint: null,
     };
     const sessions = [session, ...this.state.sessions];
-    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined});
+    // A fresh session has no saved style, so there is nothing to have drifted from.
+    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined, styleDrifted: false});
     void this.persistSession(session);
   };
 
+  /**
+   * Whether the map is showing something other than what this session saved.
+   * Worked out when the session changes rather than on every render: the
+   * comparison walks the whole style, and switching is the moment the answer
+   * changes and the moment it matters.
+   */
+  private driftFor(sessionId: string | null) {
+    const session = this.state.sessions.find(candidate => candidate.id === sessionId);
+    if (!session?.styleCheckpoint) return false;
+    return !isEqual(session.styleCheckpoint, this.props.getMaputnikStyle());
+  }
+
   onSelectSession = (sessionId: string) => {
     this.shouldAutoScrollAfterUpdate = true;
-    this.setState({activeSessionId: sessionId, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined});
+    this.setState({
+      activeSessionId: sessionId,
+      input: "",
+      pendingImages: [],
+      stylePreviewOpen: false,
+      error: undefined,
+      notice: undefined,
+      styleDrifted: this.driftFor(sessionId),
+    });
   };
 
   onDeleteSession = (sessionId: string) => {
@@ -344,7 +361,16 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const activeSessionId = this.state.activeSessionId === sessionId
       ? sessions[0]?.id ?? null
       : this.state.activeSessionId;
-    this.setState({sessions, activeSessionId, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined});
+    this.setState({
+      sessions,
+      activeSessionId,
+      input: "",
+      pendingImages: [],
+      stylePreviewOpen: false,
+      error: undefined,
+      notice: undefined,
+      styleDrifted: this.driftFor(activeSessionId),
+    });
     void this.sessionStore.delete(sessionId).catch(error => {
       if (!this.mounted) return;
       this.setState({
@@ -367,6 +393,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       this.setState({
         error: undefined,
         notice: this.props.t("The latest saved style for this conversation has been loaded."),
+        styleDrifted: false,
       });
     }
     catch (error) {
@@ -396,7 +423,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       return;
     }
 
-    const result = undoLatestAgentTurn(session, styleBefore);
+    const result = undoLatestAgentTurn(session, styleBefore, this.props.t("New session"));
     if (!result) {
       this.setState({
         notice: undefined,
@@ -424,6 +451,8 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         stylePreviewOpen: false,
         error: undefined,
         notice: this.props.t("The latest agent turn has been undone."),
+        // The undo applied the checkpoint it just rolled back to.
+        styleDrifted: false,
       }));
     }
     catch (error) {
@@ -536,12 +565,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   render() {
     const {t} = this.props;
-    const liveMap = this.props.getMap();
-    const mapStatus = this.props.renderer === "ol"
-      ? t("Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.")
-      : liveMap
-        ? t("Live map is attached.")
-        : t("Waiting for the map to load...");
     const activeSession = this.state.sessions.find(session => session.id === this.state.activeSessionId);
     const previewStyleBefore = activeSession ? this.turnUndoStyles.get(activeSession.id) : undefined;
     const previewAvailable = !!previewStyleBefore
@@ -549,40 +572,32 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       && this.previewReadySessionIds.has(activeSession.id)
       && !this.state.busy;
 
-    return <div
-      className={`agent-console ${this.state.sidebarOpen ? "agent-console--sidebar-open" : "agent-console--sidebar-closed"}`}
-      data-wd-key="agent-console"
-    >
-      <AgentConsoleSidebar
-        t={t}
-        open={this.state.sidebarOpen}
-        settingsOpen={this.state.settingsOpen}
-        settings={{
-          apiKey: this.state.apiKey,
-          endpoint: this.state.endpoint,
-          model: this.state.model,
-        }}
-        mapStatus={mapStatus}
-        sessions={this.state.sessions}
-        sessionsReady={this.state.sessionsReady}
-        activeSessionId={this.state.activeSessionId}
-        datasetStore={this.props.datasetStore}
-        onToggle={this.onToggleSidebar}
-        onToggleSettings={() => this.setState(state => ({settingsOpen: !state.settingsOpen}))}
-        onSettingsChange={this.onSettingsChange}
-        onNewSession={this.onNewSession}
-        onSelectSession={this.onSelectSession}
-        onDeleteSession={this.onDeleteSession}
-        onOpenData={this.props.onOpenData}
-      />
+    return <div className="agent-console" data-wd-key="agent-console">
+      <div className="agent-console-groups">
+        <AgentConsoleGroups
+          t={t}
+          settings={{
+            apiKey: this.state.apiKey,
+            endpoint: this.state.endpoint,
+            model: this.state.model,
+          }}
+          datasetStore={this.props.datasetStore}
+          onSettingsChange={this.onSettingsChange}
+        />
+      </div>
       <main className="agent-console-main">
         {this.state.error && <p className="agent-console-error" data-wd-key="agent-console:error">{this.state.error}</p>}
         {this.state.notice && <p className="agent-console-notice" role="status" data-wd-key="agent-console:notice">{this.state.notice}</p>}
         <AgentConsoleChat
           t={t}
           session={activeSession}
+          sessions={this.state.sessions}
           busy={this.state.busy}
           canUndo={!!activeSession && this.turnUndoStyles.has(activeSession.id)}
+          sessionsReady={this.state.sessionsReady}
+          onNewSession={this.onNewSession}
+          onSelectSession={this.onSelectSession}
+          onDeleteSession={this.onDeleteSession}
           messagesEndRef={this.messagesEndRef}
           previewStyleBefore={previewStyleBefore}
           previewAvailable={previewAvailable}
@@ -590,6 +605,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
           onToggleStylePreview={() => this.setState(state => ({stylePreviewOpen: !state.stylePreviewOpen}))}
           onUndoTurn={() => void this.onUndoTurn()}
           onLoadStyle={this.onLoadStyle}
+          styleDrifted={this.state.styleDrifted}
           onCloseStylePreview={() => this.setState({stylePreviewOpen: false})}
           composer={<AgentConsoleComposer
             t={t}

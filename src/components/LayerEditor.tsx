@@ -1,7 +1,7 @@
 import React, { type JSX } from "react";
 import { Wrapper, Button, Menu, MenuItem } from "react-aria-menubutton";
 import { Accordion } from "react-accessible-accordion";
-import { MdMoreVert } from "react-icons/md";
+import { MdClose, MdMoreVert } from "react-icons/md";
 import { IconContext } from "react-icons";
 import { type BackgroundLayerSpecification, type LayerSpecification, type SourceSpecification } from "maplibre-gl";
 import { v8 } from "@maplibre/maplibre-gl-style-spec";
@@ -9,7 +9,7 @@ import { v8 } from "@maplibre/maplibre-gl-style-spec";
 import { FieldJson } from "./FieldJson";
 import { FilterEditor } from "./FilterEditor";
 import { PropertyGroup } from "./PropertyGroup";
-import { LayerEditorGroup } from "./LayerEditorGroup";
+import { CollapsibleGroup } from "./CollapsibleGroup";
 import { FieldType } from "./FieldType";
 import { FieldId } from "./FieldId";
 import { FieldMinZoom } from "./FieldMinZoom";
@@ -128,62 +128,23 @@ type LayerEditorInternalProps = {
   isFirstLayer?: boolean
   isLastLayer?: boolean
   layerIndex: number
+  onCollapse?(): void
   errors?: MappedError[]
 } & WithTranslation;
 
-type LayerEditorState = {
-  editorGroups: { [keys: string]: boolean }
-};
-
 /** Layer editor supporting multiple types of layers. */
-class LayerEditorInternal extends React.Component<LayerEditorInternalProps, LayerEditorState> {
+class LayerEditorInternal extends React.Component<LayerEditorInternalProps> {
   static defaultProps = {
     onLayerChanged: () => { },
     onLayerIdChange: () => { },
     onLayerDestroyed: () => { },
   };
 
-  constructor(props: LayerEditorInternalProps) {
-    super(props);
-
-    const editorGroups: { [keys: string]: boolean } = {};
-    for (const group of layoutGroups(this.props.layer.type, props.t)) {
-      editorGroups[group.title] = true;
-    }
-
-    this.state = { editorGroups };
-  }
-
-  static getDerivedStateFromProps(props: Readonly<LayerEditorInternalProps>, state: LayerEditorState) {
-    const additionalGroups = { ...state.editorGroups };
-
-    for (const group of getLayoutForType(props.layer.type, props.t)) {
-      if (!(group.title in additionalGroups)) {
-        additionalGroups[group.title] = true;
-      }
-    }
-
-    return {
-      editorGroups: additionalGroups
-    };
-  }
-
-
   changeProperty(group: keyof LayerSpecification | null, property: string, newValue: any) {
     this.props.onLayerChanged(
       this.props.layerIndex,
       changeProperty(this.props.layer, group, property, newValue)
     );
-  }
-
-  onGroupToggle(groupTitle: string, active: boolean) {
-    const changedActiveGroups = {
-      ...this.state.editorGroups,
-      [groupTitle]: active,
-    };
-    this.setState({
-      editorGroups: changedActiveGroups
-    });
   }
 
   renderGroupType(type: string, fields?: string[]): JSX.Element {
@@ -311,16 +272,15 @@ class LayerEditorInternal extends React.Component<LayerEditorInternalProps, Laye
     }).map(group => {
       const groupId = group.id;
       groupIds.push(groupId);
-      return <LayerEditorGroup
+      return <CollapsibleGroup
         data-wd-key={group.title}
         id={groupId}
         key={groupId}
         title={group.title}
-        isActive={this.state.editorGroups[group.title]}
-        onActiveToggle={this.onGroupToggle.bind(this, group.title)}
+        testIdPrefix="layer-editor-group"
       >
         {this.renderGroupType(group.type, group.fields)}
-      </LayerEditorGroup>;
+      </CollapsibleGroup>;
     });
 
     const layout = this.props.layer.layout || {};
@@ -404,6 +364,16 @@ class LayerEditorInternal extends React.Component<LayerEditorInternalProps, Laye
                   </ul>
                 </Menu>
               </Wrapper>
+              {this.props.onCollapse && <button
+                type="button"
+                className="layer-header__collapse"
+                title={t("Close layer editor")}
+                aria-label={t("Close layer editor")}
+                onClick={this.props.onCollapse}
+                data-wd-key="layer-editor:collapse"
+              >
+                <MdClose />
+              </button>}
             </div>
           </div>
 

@@ -1,132 +1,47 @@
 @use "vars";
 
-$agent-workspace-map-offset: vars.$layout-list-width + vars.$layout-editor-width;
-
-.maputnik-agent-workspace-modal {
-  width: var(--agent-workspace-width);
-  height: 80vh;
-  min-width: 0;
-  max-width: none;
-  max-height: calc(100vh - 32px);
-  position: absolute;
-  top: 50%;
-  left: clamp(
-    var(--agent-workspace-inline-gutter),
-    calc((100vw + #{$agent-workspace-map-offset} - var(--agent-workspace-width)) / 2),
-    calc(100vw - var(--agent-workspace-inline-gutter) - var(--agent-workspace-width))
-  );
-  transform: translateY(-50%);
-  z-index: 1;
-  border: 1px solid rgba(164, 164, 164, 0.34);
-  border-radius: 9px;
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.48), 0 2px 12px rgba(0, 0, 0, 0.34);
-  text-align: left;
-
-  .maputnik-modal-content {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  .maputnik-modal-scroller {
-    display: flex;
-  }
-
-  .maputnik-modal-content {
-    flex: 1;
-  }
-}
-
-.maputnik-agent-workspace-shell {
-  --agent-workspace-inline-gutter: clamp(16px, 5vw, 96px);
-  --agent-workspace-width: min(
-    calc(100vw - var(--agent-workspace-inline-gutter) - var(--agent-workspace-inline-gutter)),
-    1600px,
-    max(1200px, calc((100vw - #{$agent-workspace-map-offset}) * 0.8))
-  );
-
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 1050;
-
-  &--open {
-    display: flex;
-  }
-}
-
-.maputnik-agent-workspace-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.54);
-  backdrop-filter: blur(1px);
-  cursor: pointer;
-}
-
-.maputnik-agent-workspace-loading {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 1051;
-  max-width: calc(100vw - 32px);
-  margin: 0;
-  padding: vars.$margin-3 vars.$margin-4;
-  transform: translate(-50%, -50%);
-  border: 1px solid rgba(164, 164, 164, 0.34);
-  border-radius: 9px;
-  background-color: vars.$color-black;
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.48), 0 2px 12px rgba(0, 0, 0, 0.34);
-  pointer-events: none;
-}
-
-body.maputnik-modal-open {
-  overflow: hidden;
-}
-
-.agent-workspace-tabs {
+// The agent workspace is a column docked to the right of the map rather than a
+// modal, so nothing here dims or covers the map.
+.agent-workspace-panel {
+  position: relative;
   display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: vars.$margin-2;
-  margin: calc(vars.$margin-3 * -1) calc(vars.$margin-3 * -1) vars.$margin-3;
-  padding: vars.$margin-2 vars.$margin-3;
-  border-bottom: 1px solid vars.$color-midgray;
-  background-color: vars.$color-gray;
-}
-
-.agent-workspace-tab {
-  min-width: 88px;
-  min-height: 38px;
-  justify-content: center;
-  padding: 7px 16px;
-  font-size: vars.$font-size-5;
-  font-weight: 500;
-  line-height: 20px;
-  white-space: nowrap;
-
-  &:focus-visible {
-    outline: 2px solid vars.$color-white;
-    outline-offset: 2px;
-  }
-}
-
-@media (max-width: 640px) {
-  .agent-workspace-tab {
-    min-width: 0;
-    flex: 1;
-    padding-right: vars.$margin-2;
-    padding-left: vars.$margin-2;
-  }
-}
-
-.agent-workspace-view {
-  display: none;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
+  border-left: 1px solid vars.$color-midgray;
+  background-color: vars.$color-black;
 
-  &--active {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-  }
+  // Horizontal breathing room follows the dock's width rather than the
+  // viewport's: a narrow panel should not spend its few pixels on margins a
+  // wide one can afford. Defined here rather than on the console so that the
+  // panel's own title can use it too.
+  --agent-gutter: clamp(6px, calc(var(--layout-agent-width) * 0.0133), 12px);
+}
+
+// The layer header is shared with the layer editor, which keeps its own
+// padding; only the panel's title lines up with the section headings below it.
+.agent-workspace-panel .layer-header {
+  padding-right: var(--agent-gutter);
+  padding-left: var(--agent-gutter);
+}
+
+// Sits directly under the panel title, where it reads as the panel's own
+// status rather than as a caption for the conversation.
+.agent-workspace-map-status {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 vars.$margin-3 vars.$margin-2;
+  color: vars.$color-lowgray;
+  font-size: vars.$font-size-6;
+}
+
+.agent-workspace-panel-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: vars.$margin-2;
 }

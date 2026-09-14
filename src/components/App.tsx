@@ -24,6 +24,7 @@ import { AppMessagePanel as MessagePanel } from "./AppMessagePanel";
 
 import { ModalSettings } from "./modals/ModalSettings";
 import { ModalExport } from "./modals/ModalExport";
+import { ModalExportImage } from "./modals/ModalExportImage";
 import { ModalSources } from "./modals/ModalSources";
 import { ModalOpen } from "./modals/ModalOpen";
 import { ModalShortcuts } from "./modals/ModalShortcuts";
@@ -40,19 +41,20 @@ import tokens from "../config/tokens";
 import { isEqual } from "lodash-es";
 import { type MapOptions } from "maplibre-gl";
 import { type MappedError, type OnStyleChangedOpts, type StyleSpecificationWithId } from "../libs/definitions";
+import { clampAgentPanelWidth, loadAgentPanelWidth, saveAgentPanelWidth } from "../libs/agent-panel";
 import type { MapOpenLayers } from "./MapOpenLayers";
 
 // Keep the agent workspace out of the initial bundle. It is rendered after the
 // first screen has had a chance to paint, which starts the same import as a
 // background prefetch without adding it to the initial module graph.
-const LazyModalAgentWorkspace = React.lazy(() =>
-  import("./modals/ModalAgentWorkspace").then(({ModalAgentWorkspace}) => ({
-    default: ModalAgentWorkspace,
+const LazyAgentWorkspacePanel = React.lazy(() =>
+  import("./modals/AgentWorkspacePanel").then(({AgentWorkspacePanel}) => ({
+    default: AgentWorkspacePanel,
   }))
 );
 
 const AgentWorkspaceLoading = () => <div
-  className="agent-console-generating maputnik-agent-workspace-loading"
+  className="agent-console-generating agent-workspace-panel-loading"
   role="status"
   aria-live="polite"
 >
@@ -86,6 +88,8 @@ type AppState = {
   dirtyMapStyle?: StyleSpecification,
   selectedLayerIndex: number,
   selectedLayerOriginalId?: string,
+  layerEditorCollapsed: boolean,
+  agentPanelWidth: number,
   sources: {[key: string]: SourceSpecification & {layers: string[]} },
   vectorLayers: {},
   spec: any,
@@ -113,6 +117,7 @@ type AppState = {
     open: boolean
     shortcuts: boolean
     export: boolean
+    exportImage: boolean
     debug: boolean
     globalState: boolean
     codeEditor: boolean
@@ -144,6 +149,8 @@ export class App extends React.Component<any, AppState> {
       infos: [],
       mapStyle: emptyStyle,
       selectedLayerIndex: 0,
+      layerEditorCollapsed: false,
+      agentPanelWidth: loadAgentPanelWidth(),
       sources: {},
       vectorLayers: {},
       mapState: "map",
@@ -163,6 +170,7 @@ export class App extends React.Component<any, AppState> {
         open: false,
         shortcuts: false,
         export: false,
+        exportImage: false,
         debug: false,
         globalState: false,
         codeEditor: false,
@@ -905,7 +913,26 @@ export class App extends React.Component<any, AppState> {
     this.setState({
       selectedLayerIndex: index,
       selectedLayerOriginalId: this.state.mapStyle.layers[index].id,
+      // Selecting a layer is a request to edit it, so the drawer comes back
+      // whether the layer was picked in the list, on the map, or in the
+      // message panel.
+      layerEditorCollapsed: false,
     }, this.setStateInUrl);
+  };
+
+  onLayerEditorCollapse = () => {
+    this.setState({layerEditorCollapsed: true});
+  };
+
+  onAgentPanelWidthChange = (width: number) => {
+    this.setState({agentPanelWidth: clampAgentPanelWidth(width)});
+  };
+
+  // Persisting on every pointer move would write to storage dozens of times per
+  // drag, so the resize handle commits once per gesture. The width arrives as
+  // an argument because the state update above has not been applied yet.
+  onAgentPanelWidthCommit = (width: number) => {
+    saveAgentPanelWidth(width);
   };
 
   setModal(modalName: keyof AppState["isOpen"], value: boolean) {
@@ -978,7 +1005,7 @@ export class App extends React.Component<any, AppState> {
       errors={this.state.errors}
     />;
 
-    const layerEditor = selectedLayer ? <LayerEditor
+    const layerEditor = selectedLayer && !this.state.layerEditorCollapsed ? <LayerEditor
       key={this.state.selectedLayerOriginalId}
       layer={selectedLayer}
       layerIndex={this.state.selectedLayerIndex}
@@ -993,6 +1020,7 @@ export class App extends React.Component<any, AppState> {
       onLayerCopy={this.onLayerCopy}
       onLayerVisibilityToggle={this.onLayerVisibilityToggle}
       onLayerIdChange={this.onLayerIdChange}
+      onCollapse={this.onLayerEditorCollapse}
       errors={this.state.errors}
     /> : undefined;
 
@@ -1036,6 +1064,13 @@ export class App extends React.Component<any, AppState> {
         fileHandle={this.state.fileHandle}
         onSetFileHandle={this.onSetFileHandle}
       />
+      <ModalExportImage
+        isOpen={this.state.isOpen.exportImage}
+        onOpenToggle={() => this.toggleModal("exportImage")}
+        map={this.getAgentMap()}
+        renderer={this._getRenderer()}
+        styleName={this.state.mapStyle.name ?? "maputnik"}
+      />
       <ModalOpen
         isOpen={this.state.isOpen.open}
         onStyleOpen={this.openStyle}
@@ -1054,19 +1089,24 @@ export class App extends React.Component<any, AppState> {
         isOpen={this.state.isOpen.globalState}
         onOpenToggle={() => this.toggleModal("globalState")}
       />
-      {(this.state.agentWorkspaceLoadStarted || this.state.isOpen.agentConsole) &&
-        <React.Suspense fallback={this.state.isOpen.agentConsole ? <AgentWorkspaceLoading /> : null}>
-          <LazyModalAgentWorkspace
-            isOpen={this.state.isOpen.agentConsole}
-            onOpenToggle={() => this.toggleModal("agentConsole")}
-            getMap={this.getAgentMap}
-            getMaputnikStyle={this.getAgentMaputnikStyle}
-            updateMaputnikStyle={this.updateAgentMaputnikStyle}
-            renderer={this._getRenderer()}
-          />
-        </React.Suspense>
-      }
     </div>;
+
+    // The panel is handed to the layout rather than the modal stack, and stays
+    // mounted once loaded so the conversation survives being toggled. Closing it
+    // only takes the column's width away, which `agentOpen` drives.
+    const agentLoaded = this.state.agentWorkspaceLoadStarted || this.state.isOpen.agentConsole;
+    const agentPanel = agentLoaded ? <React.Suspense fallback={<AgentWorkspaceLoading />}>
+      <LazyAgentWorkspacePanel
+        onOpenToggle={() => this.toggleModal("agentConsole")}
+        getMap={this.getAgentMap}
+        getMaputnikStyle={this.getAgentMaputnikStyle}
+        updateMaputnikStyle={this.updateAgentMaputnikStyle}
+        renderer={this._getRenderer()}
+        width={this.state.agentPanelWidth}
+        onWidthChange={this.onAgentPanelWidthChange}
+        onWidthCommit={this.onAgentPanelWidthCommit}
+      />
+    </React.Suspense> : undefined;
 
     return <AppLayout
       toolbar={toolbar}
@@ -1074,6 +1114,9 @@ export class App extends React.Component<any, AppState> {
       layerEditor={layerEditor}
       codeEditor={codeEditor}
       map={this.mapRenderer()}
+      agent={agentPanel}
+      agentOpen={this.state.isOpen.agentConsole}
+      agentWidth={this.state.agentPanelWidth}
       bottom={bottomPanel}
       modals={modals}
     />;

@@ -48,7 +48,7 @@ describe("agent turn undo", () => {
       {type: "message", role: "assistant", content: [{type: "output_text", text: "Done"}]},
     ];
 
-    const result = undoLatestAgentTurn(session(inputItems), style("before second"), 10);
+    const result = undoLatestAgentTurn(session(inputItems), style("before second"), "New session", 10);
 
     expect(result).not.toBeNull();
     expect(result!.session.inputItems).toEqual(firstTurn);
@@ -59,10 +59,10 @@ describe("agent turn undo", () => {
   });
 
   it("keeps the session but clears its checkpoint and title after undoing the first turn", () => {
-    const result = undoLatestAgentTurn(session(firstTurn), style("before first"), 10);
+    const result = undoLatestAgentTurn(session(firstTurn), style("before first"), "Untitled", 10);
 
     expect(result!.session).toMatchObject({
-      title: "New session",
+      title: "Untitled",
       inputItems: [],
       styleCheckpoint: null,
       updatedAt: 10,
@@ -70,6 +70,6 @@ describe("agent turn undo", () => {
   });
 
   it("returns null when the session has no user turn", () => {
-    expect(undoLatestAgentTurn(session([]), style("before"))).toBeNull();
+    expect(undoLatestAgentTurn(session([]), style("before"), "New session")).toBeNull();
   });
 });

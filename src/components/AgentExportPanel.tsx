@@ -11,6 +11,7 @@ import {
   type ExportLayerMode,
   type ExportVisibilityPlan,
 } from "../libs/agent-export";
+import {describeLiveMap} from "../libs/agent-panel";
 
 type AgentExportPanelInternalProps = {
   map: Map | null;
@@ -56,9 +57,6 @@ function restoreLayerVisibility(map: Map, plan: ExportVisibilityPlan) {
 function createExportCanvas(map: Map) {
   const container = map.getContainer();
   const sourceCanvas = map.getCanvas();
-  if (!container || !sourceCanvas) {
-    return null;
-  }
 
   const width = Math.max(1, Math.round(container.clientWidth * AGENT_EXPORT_SCALE));
   const height = Math.max(1, Math.round(container.clientHeight * AGENT_EXPORT_SCALE));
@@ -109,21 +107,21 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
     }
 
     this.exporting = true;
+    const statusByMode: Record<ExportLayerMode, string> = {
+      composite: this.props.t("Generating composite..."),
+      base: this.props.t("Generating base map..."),
+      overlay: this.props.t("Generating overlay..."),
+    };
     this.setState({
       busy: true,
       error: undefined,
-      status: mode === "base" ? this.props.t("Generating base map...") : this.props.t("Generating overlay..."),
+      status: statusByMode[mode],
     });
 
     let plan: ExportVisibilityPlan | null = null;
     try {
-      const style = map.getStyle();
-      if (!style) {
-        throw new Error(this.props.t("Live map style is not ready"));
-      }
-
       plan = createExportVisibilityPlan(
-        (style.layers ?? []) as ExportLayer[],
+        map.getStyle().layers as ExportLayer[],
         mode
       );
 
@@ -171,33 +169,32 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
     const {t} = this.props;
     const liveMap = this.props.renderer === "mlgljs" && this.props.map;
     const disabled = !liveMap || this.state.busy;
-    const mapStatus = this.props.renderer === "ol"
-      ? t("Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.")
-      : liveMap
-        ? t("Live map is attached.")
-        : t("Waiting for the map to load...");
 
-    return <div className="agent-export-panel" data-wd-key="agent-workspace:export">
-      <section className="maputnik-modal-section agent-export-section">
-        <div className="agent-export-heading">
-          <div>
-            <div className="agent-export-eyebrow"><MdFileDownload /> {t("Export workspace")}</div>
-            <h1>{t("PNG Export")}</h1>
-          </div>
-          <span className="agent-export-format">PNG</span>
-        </div>
+    return <div className="agent-export-panel" data-wd-key="agent-export">
+      <section className="maputnik-modal-section">
         <p className="agent-export-description">
-          {t("Exports the current live map as separate base and overlay PNGs. Historical overlays are identified by the agent-dataset: prefix or maputnik:role metadata.")}
+          {t("Exports the current live map as PNG. The composite image keeps every layer; the base and overlay images split them apart. Historical overlays are identified by the agent-dataset: prefix or maputnik:role metadata.")}
         </p>
-        <div className="agent-export-overlay-note">
+        <div className="maputnik-expr-infobox agent-export-note">
           <MdLayers />
           <p>{t("Tip: Set a layer ID beginning with agent-dataset: to force it into the overlay export.")}</p>
         </div>
-        <p className="agent-export-map-status" data-wd-key="agent-export:map-status">{mapStatus}</p>
+        <p className="agent-export-map-status" data-wd-key="agent-export:map-status">
+          {describeLiveMap(t, this.props.renderer, this.props.map)}
+        </p>
 
         <div className="agent-export-actions">
           <InputButton
-            className="maputnik-button--with-icon agent-export-button agent-export-button--base"
+            className="maputnik-button--with-icon maputnik-white-button"
+            onClick={() => void this.onExport("composite")}
+            disabled={disabled}
+            data-wd-key="agent-export:composite"
+          >
+            <MdFileDownload />
+            {t("Download composite")}
+          </InputButton>
+          <InputButton
+            className="maputnik-button--with-icon"
             onClick={() => void this.onExport("base")}
             disabled={disabled}
             data-wd-key="agent-export:base"
@@ -206,7 +203,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
             {t("Download base")}
           </InputButton>
           <InputButton
-            className="maputnik-button--with-icon agent-export-button agent-export-button--overlay"
+            className="maputnik-button--with-icon"
             onClick={() => void this.onExport("overlay")}
             disabled={disabled}
             data-wd-key="agent-export:overlay"
@@ -215,7 +212,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
             {t("Download overlay")}
           </InputButton>
           <InputButton
-            className="maputnik-button--with-icon agent-export-button agent-export-button--both"
+            className="maputnik-button--with-icon"
             onClick={() => void this.onExportBoth()}
             disabled={disabled}
             data-wd-key="agent-export:both"

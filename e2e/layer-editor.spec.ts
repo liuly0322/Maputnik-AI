@@ -1,5 +1,5 @@
 import { v1 as uuid } from "uuid";
-import { beforeEach, describe, test } from "./utils/fixtures";
+import { beforeEach, describe, expect, test } from "./utils/fixtures";
 import { MaputnikDriver } from "./maputnik-driver";
 
 describe("layer editor", () => {
@@ -36,6 +36,35 @@ describe("layer editor", () => {
 
     await when.toggleGroupInLayerEditor("Layer");
     await then(get.elementByTestId("layer-editor.layer-id.input")).shouldBeVisible();
+  });
+
+  describe("panel collapse", () => {
+    let bgId: string;
+
+    beforeEach(async () => {
+      bgId = await createBackground();
+      await when.click("layer-list-item:background:" + bgId);
+    });
+
+    test("hands the editor width over to the map", async () => {
+      await then(get.elementByTestId("layer-editor")).shouldBeVisible();
+      const mapWidthBefore = (await get.elementBox("maplibre:container").get())!.width;
+
+      await when.click("layer-editor:collapse");
+
+      await then(get.elementByTestId("layer-editor")).shouldNotExist();
+      const mapWidthAfter = (await get.elementBox("maplibre:container").get())!.width;
+      expect(mapWidthAfter).toBeGreaterThan(mapWidthBefore);
+    });
+
+    test("returns when a layer is selected again", async () => {
+      await when.click("layer-editor:collapse");
+      await then(get.elementByTestId("layer-editor")).shouldNotExist();
+
+      await when.click("layer-list-item:background:" + bgId);
+
+      await then(get.elementByTestId("layer-editor")).shouldBeVisible();
+    });
   });
 
   test("id", async () => {

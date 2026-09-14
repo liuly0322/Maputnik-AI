@@ -16,6 +16,26 @@
   font-family: vars.$font-family;
   color: vars.$color-white;
 
+  // The side panel widths are runtime state rather than build-time constants,
+  // because the layer editor can be collapsed to give the map its space back.
+  // `--layout-side-width` is the total width the fixed bottom panel has to
+  // clear; the map itself no longer needs any of this, since it just takes
+  // whatever the flex row leaves behind.
+  --layout-list-width: #{vars.$layout-list-width};
+  --layout-drawer-width: #{vars.$layout-editor-width};
+  --layout-side-width: calc(var(--layout-list-width) + var(--layout-drawer-width));
+  // Set inline while the agent panel is open. It stays 0 otherwise, which is
+  // what removes the column from the row without unmounting the panel.
+  --layout-agent-width: 0px;
+
+  &--drawer-collapsed {
+    --layout-side-width: var(--layout-list-width);
+  }
+
+  &--code-editor {
+    --layout-side-width: #{vars.$layout-code-editor-width};
+  }
+
   &-main {
     position: fixed;
     bottom: 0;
@@ -29,30 +49,41 @@
   }
 
   &-list {
-    width: 200px;
+    width: var(--layout-list-width);
     background-color: vars.$color-black;
   }
 
   &-drawer {
-    width: 370px;
+    width: var(--layout-drawer-width);
     background-color: vars.$color-black;
     // scroll-container is position: absolute
     position: relative;
   }
 
   &-code-editor {
-    width: 570px;
+    width: vars.$layout-code-editor-width;
     background-color: vars.$color-black;
     // scroll-container is position: absolute
     position: relative;
   }
 
+  // The agent panel stays mounted while closed so that its conversation
+  // survives, so the column collapses by width instead of being unmounted.
+  &-agent {
+    position: relative;
+    flex: 0 0 auto;
+    width: var(--layout-agent-width);
+    min-width: 0;
+    background-color: vars.$color-black;
+    overflow: hidden;
+  }
+
   &-bottom {
     position: fixed;
     bottom: 0;
-    right: 0;
+    right: var(--layout-agent-width);
+    left: var(--layout-side-width);
     z-index: 10;
-    width: vars.$layout-map-width;
     background-color: vars.$color-black;
   }
 }

@@ -1,4 +1,4 @@
-import {test, describe, beforeEach} from "./utils/fixtures";
+import {test, describe, beforeEach, expect, currentPage} from "./utils/fixtures";
 import {MaputnikDriver} from "./maputnik-driver";
 
 const csv = "name,lon,lat,value\nA,1,2,10\nB,3,4,20";
@@ -11,10 +11,10 @@ describe("datasets", () => {
     await when.setStyle("");
   });
 
-  test("uploads a CSV dataset, shows its chat context, and keeps it after reload", async () => {
+  test("uploads a CSV dataset and keeps it after reload", async () => {
     await when.click("nav:agent-workspace");
-    await then(get.elementByTestId("modal:agent-workspace")).shouldExist();
-    await when.click("agent-workspace:tab-data");
+    await then(get.elementByTestId("agent-workspace-panel")).shouldExist();
+    await when.click("agent-console-group:Data");
 
     await when.chooseCsvFromPicker("points.csv", csv);
     await then(get.elementByTestId("datasets:list")).shouldContainText("points.csv");
@@ -24,23 +24,16 @@ describe("datasets", () => {
     await then(get.elementByTestId("datasets:list")).shouldContainText("lat");
     await then(get.elementByTestId("datasets:list")).shouldContainText("value");
 
-    await when.click("agent-workspace:tab-chat");
-    await then(get.elementByTestId("agent-console:dataset-chips")).shouldContainText("points.csv");
-    await then(get.elementByTestId("agent-console:dataset-chips")).shouldContainText("csv · 2 rows");
-    await then(get.element("div.agent-console-dataset-chip")).shouldExist();
-    await then(get.element("button.agent-console-dataset-chip")).shouldNotExist();
-
-    await when.modal.close("modal:agent-workspace");
+    await when.modal.close("agent-workspace-panel");
     await when.setStyle("");
     await when.wait(1000);
     await when.click("nav:agent-workspace");
-    await when.click("agent-workspace:tab-data");
     await then(get.elementByTestId("datasets:list")).shouldContainText("points.csv");
   });
 
   test("deletes an uploaded CSV dataset", async () => {
     await when.click("nav:agent-workspace");
-    await when.click("agent-workspace:tab-data");
+    await when.click("agent-console-group:Data");
     await when.chooseCsvFromPicker("remove-me.csv", csv);
 
     await when.removeFirstDataset();
@@ -48,9 +41,32 @@ describe("datasets", () => {
     await then(get.element(".maputnik-dataset-item")).shouldNotExist();
   });
 
+  test("passes the dataset catalog to the model", async () => {
+    const requests: any[] = [];
+    await currentPage().route("http://localhost:8888/responses", route => {
+      requests.push(route.request().postDataJSON());
+      return route.fulfill({contentType: "text/event-stream", body: ""});
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console-group:Data");
+    await when.chooseCsvFromPicker("catalog.csv", csv);
+
+    await when.click("agent-console-group:API settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Inspect the data");
+    await when.click("agent-console:send");
+
+    await expect.poll(() => requests.length).toBe(1);
+    expect(requests[0].instructions).toContain("catalog.csv");
+    expect(requests[0].instructions).toContain("lon");
+  });
+
   test("shows a parsing error without adding a malformed CSV dataset", async () => {
     await when.click("nav:agent-workspace");
-    await when.click("agent-workspace:tab-data");
+    await when.click("agent-console-group:Data");
 
     await when.chooseCsvFromPicker("broken.csv", 'name,value\n"unterminated,1');
 

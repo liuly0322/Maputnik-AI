@@ -6,7 +6,10 @@
 .maputnik-map__container {
   background: white;
   display: flex;
-  width: vars.$layout-map-width;
+  // The map fills whatever the side panels leave behind, so collapsing a panel
+  // gives its width back without any layout arithmetic.
+  flex: 1;
+  min-width: 0;
 
   &--error {
     align-items: center;
@@ -304,6 +307,23 @@
 .maputnik-input-block--error {
   .maputnik-input-block-label {
     color: vars.$color-red;
+  }
+}
+
+// Vertical splitter for a resizable side panel, sitting on its leading edge.
+// The panel is on the right, so dragging left widens it.
+.maputnik-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+
+  &:hover {
+    background: vars.$color-midgray;
   }
 }
 

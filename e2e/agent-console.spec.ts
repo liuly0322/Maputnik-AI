@@ -15,7 +15,7 @@ describe("agent console", () => {
     await when.click("nav:agent-workspace");
 
     await then(get.elementByTestId("agent-console:map-status")).shouldContainText("Live map is attached.");
-    await when.click("agent-workspace:tab-export");
+    await when.click("nav:export-image");
     await then(get.elementByTestId("agent-export:map-status")).shouldContainText("Live map is attached.");
   });
 
@@ -27,7 +27,7 @@ describe("agent console", () => {
 
     const message = "Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.";
     await then(get.elementByTestId("agent-console:map-status")).shouldContainText(message);
-    await when.click("agent-workspace:tab-export");
+    await when.click("nav:export-image");
     await then(get.elementByTestId("agent-export:map-status")).shouldContainText(message);
   });
 
@@ -46,7 +46,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -54,7 +54,7 @@ describe("agent console", () => {
     await when.click("agent-console:send");
 
     await then(get.elementByTestId("agent-console:messages")).shouldContainText("Hello from the mock agent");
-    await then(get.elementByTestId("agent-console:sessions")).shouldContainText("Inspect the map");
+    await then(get.elementByTestId("agent-console:session-picker")).shouldContainText("Inspect the map");
   });
 
   test("syncs a native MapLibre mutation to the editor", async () => {
@@ -77,7 +77,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -92,7 +92,7 @@ describe("agent console", () => {
       }],
     });
 
-    await when.modal.close("modal:agent-workspace");
+    await when.modal.close("agent-workspace-panel");
     await then(get.elementByTestId("layer-list-item:agent-native-layer")).shouldExist();
   });
 
@@ -108,7 +108,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -160,7 +160,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -177,10 +177,9 @@ describe("agent console", () => {
     await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
     await then(get.elementByTestId("agent-console:messages")).shouldContainText("Partial reply from the agent");
     await then(get.elementByTestId("agent-console:error")).shouldNotExist();
-    await then(get.elementByTestId("agent-console:load-style")).shouldBeVisible();
   });
 
-  test("persists per-session style checkpoints and loads them only on request", async () => {
+  test("persists per-session style checkpoints and restores them only on request", async () => {
     const page = currentPage();
     const changedStyleName = "Changed by second session";
     await page.route("http://localhost:8888/responses", route => {
@@ -208,29 +207,39 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
     await when.setValue("agent-console:input", "Save original style");
     await when.click("agent-console:send");
 
-    await then(get.elementByTestId("agent-console:load-style")).shouldBeVisible();
+    // The turn just saved the live style, so this session can have drifted from
+    // nothing and there is no restore to offer.
+    await then(get.elementByTestId("agent-console:style-drift")).shouldNotExist();
+
+    await when.openSessionPicker();
     await when.click("agent-console:new-session");
     await when.setValue("agent-console:input", "Change the style for session two");
     await when.click("agent-console:send");
 
-    await then(get.elementByTestId("agent-console:load-style")).shouldBeVisible();
+    await then(get.elementByTestId("agent-console:style-drift")).shouldNotExist();
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual(changedStyleName);
 
-    await get.element(".agent-console-session-select").filter({hasText: "Save original style"}).click();
+    // Switching shows the other conversation without touching the map, so the
+    // two have drifted and the panel has to say so.
+    await when.openSessionPicker();
+    await get.element(".agent-session-picker__select").filter({hasText: "Save original style"}).click();
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual(changedStyleName);
+    await then(get.elementByTestId("agent-console:style-drift")).shouldBeVisible();
 
-    await when.modal.close("modal:agent-workspace");
+    await when.modal.close("agent-workspace-panel");
     await when.setStyle("");
     await when.click("nav:agent-workspace");
-    await get.element(".agent-console-session-select").filter({hasText: "Save original style"}).click();
-    await when.click("agent-console:load-style");
+    await when.openSessionPicker();
+    await get.element(".agent-session-picker__select").filter({hasText: "Save original style"}).click();
+    await then(get.elementByTestId("agent-console:style-drift")).shouldBeVisible();
+    await when.click("agent-console:restore-style");
 
     await then(get.elementByTestId("agent-console:notice")).shouldContainText("The latest saved style for this conversation has been loaded.");
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual("Test Style");
@@ -277,7 +286,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -302,7 +311,9 @@ describe("agent console", () => {
     expect(await get.elementsText("agent-console:messages").get()).not.toContain("Second request");
     await then(get.elementByTestId("agent-console:input")).shouldHaveValue("Second request");
     await then(get.element(".agent-console-pending-image")).shouldExist();
-    expect(await get.elementAttribute("agent-console:undo-turn", "disabled").get()).toBe("");
+    // There is no longer a turn to act on, so the row goes rather than sitting
+    // there disabled.
+    await then(get.elementByTestId("agent-console:undo-turn")).shouldNotExist();
   });
 
   test("previews the saved style delta without reading later live edits", async () => {
@@ -326,7 +337,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -343,7 +354,7 @@ describe("agent console", () => {
     await then(get.element("#agent-style-change-0")).shouldContainText("0.8");
 
     await when.modal.closeAgentStyleChanges();
-    await when.modal.close("modal:agent-workspace");
+    await when.modal.close("agent-workspace-panel");
     await when.click("layer-list-item:rectangles");
     await when.setValue("spec-field-input:fill-opacity", "0.1");
     await when.click("layer-editor.layer-id");
@@ -383,7 +394,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -421,7 +432,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -438,7 +449,7 @@ describe("agent console", () => {
 
   test("wraps long unbroken messages without widening the console", async () => {
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -465,7 +476,7 @@ describe("agent console", () => {
     });
 
     await when.click("nav:agent-workspace");
-    await when.click("agent-console:toggle-settings");
+    await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
     await when.setValue("agent-console:model", "test-model");
@@ -473,7 +484,7 @@ describe("agent console", () => {
     await when.click("agent-console:send");
 
     await then(get.elementByTestId("agent-console:generating")).shouldBeVisible();
-    await when.modal.close("modal:agent-workspace");
+    await when.modal.close("agent-workspace-panel");
     await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
 
     await when.click("nav:agent-workspace");

@@ -1,30 +1,18 @@
 import React from "react";
-import {MdDelete, MdFileUpload, MdFolderOpen, MdStorage} from "react-icons/md";
+import {MdDelete, MdFileUpload} from "react-icons/md";
 import {type WithTranslation, withTranslation} from "react-i18next";
 
 import {InputButton} from "./InputButton";
-import type {Dataset} from "../libs/dataset";
 import type {DatasetStore} from "../libs/dataset-store";
 
 type DatasetPanelInternalProps = {
   store: DatasetStore;
-  onDatasetsChange(): void;
 } & WithTranslation;
 
 type DatasetPanelInternalState = {
   error?: string;
   busy: boolean;
 };
-
-function getDatasetDisplay(dataset: Dataset) {
-  switch (dataset.type) {
-    case "csv":
-      return {
-        rowCount: dataset.data.rows.length,
-        columns: dataset.data.columns,
-      };
-  }
-}
 
 class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, DatasetPanelInternalState> {
   private fileInputRef = React.createRef<HTMLInputElement>();
@@ -48,7 +36,9 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
     try {
       const text = await file.text();
       await this.props.store.addCsv(file.name, text);
-      this.props.onDatasetsChange();
+      // The store is external mutable state, so the list it feeds needs an
+      // explicit re-render rather than a state update.
+      this.forceUpdate();
     }
     catch (error) {
       this.setState({error: error instanceof Error ? error.message : String(error)});
@@ -63,7 +53,7 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
     this.setState({error: undefined});
     try {
       await this.props.store.remove(id);
-      this.props.onDatasetsChange();
+      this.forceUpdate();
     }
     catch (error) {
       this.setState({error: error instanceof Error ? error.message : String(error)});
@@ -75,13 +65,9 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
     const datasets = this.props.store.getAll();
 
     return <div className="dataset-panel" data-wd-key="agent-workspace:data">
-      <section className="maputnik-modal-section dataset-panel-section dataset-panel-upload-section">
+      <section className="dataset-panel-section">
         <div className="dataset-panel-section-header">
-          <div>
-            <div className="dataset-panel-eyebrow"><MdStorage /> {t("Data source")}</div>
-            <h1>{t("CSV datasets")}</h1>
-            <p className="dataset-panel-description">{t("Upload a CSV file. The agent can inspect its columns and rows without assuming which columns are coordinates.")}</p>
-          </div>
+          <p className="dataset-panel-description">{t("Upload a CSV file. The agent can inspect its columns and rows without assuming which columns are coordinates.")}</p>
           <InputButton className="maputnik-button--with-icon dataset-panel-upload-button" onClick={this.onBrowseClick} data-wd-key="datasets:upload">
             <MdFileUpload />
             {t("Upload CSV")}
@@ -99,18 +85,14 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
         {this.state.error && <p className="maputnik-modal-error">{this.state.error}</p>}
       </section>
 
-      <section className="maputnik-modal-section dataset-panel-section dataset-panel-loaded-section">
+      <section className="dataset-panel-section">
         <div className="dataset-panel-section-heading">
-          <div>
-            <div className="dataset-panel-eyebrow"><MdFolderOpen /> {t("Workspace")}</div>
-            <h1>{t("Loaded datasets")}</h1>
-          </div>
+          <span className="dataset-panel-section-label">{t("Loaded datasets")}</span>
           {datasets.length > 0 && <span className="dataset-panel-count">{datasets.length}</span>}
         </div>
         {datasets.length === 0 && <p className="dataset-panel-empty">{t("No datasets yet.")}</p>}
         <div className="maputnik-dataset-list" data-wd-key="datasets:list">
           {datasets.map(dataset => {
-            const display = getDatasetDisplay(dataset);
             return <article className="maputnik-dataset-item" key={dataset.id} data-wd-key={`datasets:item:${dataset.id}`}>
               <div className="maputnik-dataset-item-header">
                 <div className="maputnik-dataset-item-name" title={dataset.name}>{dataset.name}</div>
@@ -124,10 +106,10 @@ class DatasetPanelInternal extends React.Component<DatasetPanelInternalProps, Da
                 </InputButton>
               </div>
               <div className="maputnik-dataset-item-meta">
-                {display.rowCount} {t("rows")}
+                {dataset.data.rows.length} {t("rows")}
               </div>
               <div className="maputnik-dataset-item-columns" aria-label={t("Columns")}>
-                {display.columns.map(column => <span key={column}>{column}</span>)}
+                {dataset.data.columns.map(column => <span key={column}>{column}</span>)}
               </div>
             </article>;
           })}

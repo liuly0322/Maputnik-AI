@@ -10,6 +10,7 @@ import {
   MdFindInPage,
   MdLanguage,
   MdSave,
+  MdImage,
   MdPublic,
   MdCode,
   MdTerminal
@@ -25,7 +26,7 @@ import type { OnStyleChangedCallback } from "../libs/definitions";
 const browser = detect();
 const colorAccessibilityFiltersEnabled = ["chrome", "firefox"].indexOf(browser!.name) > -1;
 
-export type ModalTypes = "settings" | "sources" | "open" | "shortcuts" | "export" | "debug" | "globalState" | "codeEditor" | "agentConsole";
+export type ModalTypes = "settings" | "sources" | "open" | "shortcuts" | "export" | "exportImage" | "debug" | "globalState" | "codeEditor" | "agentConsole";
 
 type IconTextProps = {
   children?: React.ReactNode
@@ -230,6 +231,10 @@ class AppToolbarInternal extends React.Component<AppToolbarInternalProps> {
           <ToolbarAction wdKey="nav:export" onClick={() => this.props.onToggleModal("export")}>
             <MdSave />
             <IconText>{t("Save")}</IconText>
+          </ToolbarAction>
+          <ToolbarAction wdKey="nav:export-image" onClick={() => this.props.onToggleModal("exportImage")}>
+            <MdImage />
+            <IconText>{t("Export image")}</IconText>
           </ToolbarAction>
           <ToolbarAction wdKey="nav:code-editor" onClick={() => this.props.onToggleModal("codeEditor")}>
             <MdCode />

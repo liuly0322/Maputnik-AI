@@ -1,158 +1,96 @@
 @use "vars";
 
-.maputnik-agent-console-modal {
-  width: 720px;
-  max-width: calc(100vw - 40px);
+@use 'sass:color';
 
-  .maputnik-modal-content {
-    display: block;
-  }
-}
-
+// The console is a single column: the collapsible groups, the map status line,
+// then the conversation, which takes whatever is left.
 .agent-console {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  gap: vars.$margin-3;
-}
-
-.agent-console--sidebar-closed {
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
-
-  .agent-console-sidebar-slot {
-    width: 48px;
-  }
-}
-
-.agent-console-sidebar-slot {
-  position: relative;
-  width: 300px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.agent-console-sidebar {
-  position: absolute;
-  inset: 0 auto 0 0;
   display: flex;
   flex-direction: column;
-  width: 48px;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
-  border: 1px solid vars.$color-midgray;
-  border-radius: 8px;
-  background-color: vars.$color-gray;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  // The panel itself never scrolls: the settings stay reachable at the top
+  // while the conversation scrolls in its own region below.
   overflow: hidden;
-  transition: width 160ms ease, box-shadow 160ms ease;
 }
 
-.agent-console-sidebar--open {
-  width: 300px;
+// Every section heading in the panel lines up on the same inset. Scoped to the
+// console because the group component is shared with the layer editor, where
+// this variable does not exist.
+.agent-console .maputnik-collapsible-group__button {
+  padding-right: var(--agent-gutter);
+  padding-left: var(--agent-gutter);
 }
 
-.agent-console-sidebar:not(.agent-console-sidebar--open) {
-  .agent-console-sidebar-header span {
-    display: none;
-  }
-}
-
-.agent-console-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 44px;
-  padding: 7px;
-  border-bottom: 1px solid vars.$color-midgray;
-  color: vars.$color-white;
-
-  span {
-    padding-left: vars.$margin-1;
-  }
-}
-
-.agent-console-sidebar-toggle {
-  flex: 0 0 auto;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: 4px;
-
-  svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  &:focus-visible {
-    outline: 2px solid vars.$color-white;
-    outline-offset: 1px;
-  }
-}
-
-.agent-console-sidebar-content {
-  flex: 1;
+// Takes the height its groups need and only shrinks — growing a scrollbar of
+// its own — when the conversation's floor would otherwise be squeezed away.
+.agent-console-groups {
+  flex: 0 1 auto;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.agent-console-group-panel {
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-2;
   padding: vars.$margin-3;
 }
 
+// No horizontal padding here: the section headers span the panel so their
+// dividers read as section boundaries. The inset lives on the content.
 .agent-console-main {
+  // A zero basis matters: with a content-based one, a long conversation makes
+  // the basis huge and the shrink gets shared with the groups above, which
+  // then grow a scrollbar they do not need.
+  flex: 1 1 0;
   min-width: 0;
-  min-height: 0;
+  // The conversation keeps a usable floor; the groups above shrink instead.
+  min-height: 240px;
   display: flex;
   flex-direction: column;
   gap: vars.$margin-2;
 }
 
-.agent-console-controls {
-  display: flex;
-  flex-direction: column;
-  gap: vars.$margin-3;
-}
-
-.agent-console-control-block {
-  padding: vars.$margin-3;
-  border: 1px solid vars.$color-midgray;
-  border-radius: 4px;
-  background-color: vars.$color-black;
-}
-
+// The conversation sits on a distinctly lighter surface than the settings
+// above it, so the panel reads as two regions rather than one stack of
+// identical section bars. It still has no frame of its own.
 .agent-console-chat-card {
   position: relative;
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  overflow: hidden;
-  border: 1px solid vars.$color-lowgray;
-  border-radius: 8px;
-  background-color: vars.$color-black;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  background-color: vars.$color-gray;
 }
 
 .agent-console-chat-body {
   position: relative;
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-
-  > .agent-console-messages {
-    flex: 1;
-  }
 }
 
+// Floats over the conversation instead of shrinking it: the diff is something
+// you glance at and dismiss, and taking a column would leave the messages a
+// sliver of a 500px panel.
 .agent-style-change-preview {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
   display: flex;
-  flex: 0 0 clamp(320px, 38%, 440px);
+  height: 100%;
   min-width: 0;
-  min-height: 0;
   flex-direction: column;
-  border-left: 1px solid vars.$color-midgray;
-  background-color: vars.$color-black;
+  overflow-y: auto;
+  border-top: 1px solid vars.$color-midgray;
+  background-color: vars.$color-gray;
   color: vars.$color-white;
 }
 
@@ -323,15 +261,29 @@
   }
 }
 
+// The console lives in a resizable dock now, so its headings follow the panel
+// chrome rather than the modal display sizes and margins the global `h1` rule
+// gives them. The margin matters: it otherwise pushes the header buttons out of
+// line with the title they sit beside.
+.agent-console h1 {
+  margin: 0;
+  font-size: vars.$font-size-4;
+  line-height: 1.4;
+}
+
 .agent-console-chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: vars.$margin-3;
+  flex-wrap: wrap;
+  gap: vars.$margin-2 vars.$margin-3;
   flex-shrink: 0;
-  padding: vars.$margin-3;
+  padding: vars.$margin-2 var(--agent-gutter);
   border-bottom: 1px solid vars.$color-midgray;
-  background-color: vars.$color-gray;
+  // Lighter than the conversation below it, and lighter still than the group
+  // headings above, so it reads as the top of the conversation rather than as
+  // one more configuration bar.
+  background-color: color.adjust(vars.$color-gray, $lightness: 7%);
 }
 
 .agent-console-turn-action {
@@ -351,13 +303,39 @@
   }
 }
 
-.agent-console-chat-actions {
+// The turn actions sit under the conversation rather than in the header: they
+// act on the turn that just finished, so they belong next to it. The row is
+// only rendered when there is something to act on.
+.agent-console-turn-actions {
   display: flex;
-  align-items: center;
+  // Right-aligned, so the row does not read as a second line of the composer's
+  // left-aligned controls.
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: vars.$margin-2;
-  min-width: 0;
+  padding: 0 var(--agent-gutter) vars.$margin-3;
+}
+
+// Shown only while the map shows something other than this session's saved
+// style, so it explains itself instead of leaving a permanent button whose
+// meaning has to be learned.
+.agent-console-style-drift {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: vars.$margin-2;
+  margin: 0 var(--agent-gutter) vars.$margin-3;
+  padding: vars.$margin-2 vars.$margin-3;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 3px;
+  background-color: vars.$color-black;
+  color: vars.$color-lowgray;
+  font-size: vars.$font-size-6;
+
+  span {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .agent-console-generating {
@@ -385,10 +363,6 @@
 }
 
 .agent-console-settings {
-  display: flex;
-  flex-direction: column;
-  gap: vars.$margin-3;
-
   label {
     display: flex;
     flex-direction: column;
@@ -411,78 +385,100 @@
   }
 }
 
-.agent-console-settings-header,
-.agent-console-sessions-header,
-.agent-console-context-header {
+// The session switcher behind the conversation's title. It hangs off the
+// header so the list sits next to the conversation it switches.
+.agent-session-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.agent-session-picker__button {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: vars.$margin-3;
-  margin-bottom: vars.$margin-3;
+  gap: vars.$margin-1;
+  min-width: 0;
+  max-width: 220px;
 
-  h1 {
-    margin-bottom: 0;
+  svg {
+    flex: 0 0 auto;
   }
 }
 
-.agent-console-header-action {
-  justify-content: center;
-  white-space: nowrap;
-
-}
-
-.agent-console-sessions {
-  display: flex;
-  flex-direction: column;
-  gap: vars.$margin-2;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.agent-console-session {
-  display: flex;
-  align-items: center;
-  gap: vars.$margin-2;
-  border: 1px solid vars.$color-midgray;
-  border-radius: 2px;
-  background-color: vars.$color-gray;
-}
-
-.agent-console-session--active {
-  border-color: vars.$color-lowgray;
-  background-color: vars.$color-midgray;
-}
-
-.agent-console-session-select {
-  flex: 1;
+.agent-session-picker__title {
   min-width: 0;
-  padding: vars.$margin-2 vars.$margin-3;
-  border: 0;
-  background: transparent;
-  color: vars.$color-white;
-  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-console-session-delete {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 0;
-  background: transparent;
-  color: vars.$color-lowgray;
+.agent-session-picker__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: vars.$margin-1 0 0;
+  padding: 0;
+  border: 1px solid vars.$color-midgray;
+  border-radius: 2px;
+  background-color: vars.$color-black;
+  list-style: none;
 }
 
-.agent-console-messages {
+.agent-session-picker__row {
+  display: flex;
+  align-items: center;
+}
+
+.agent-session-picker__item {
+  padding: vars.$margin-2 vars.$margin-3;
+  color: vars.$color-lowgray;
+  font-size: vars.$font-size-6;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  // The focus group moves real DOM focus, so this covers both the pointer and
+  // stepping through with the arrow keys.
+  &:focus {
+    outline: none;
+    background-color: vars.$color-midgray;
+    color: vars.$color-white;
+  }
+}
+
+.agent-session-picker__select {
   flex: 1;
+  min-width: 0;
+}
+
+.agent-session-picker__select--active {
+  color: vars.$color-white;
+  font-weight: bold;
+}
+
+.agent-session-picker__delete {
+  flex: 0 0 auto;
+  line-height: 0;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+// The conversation's own scroll region, sitting between the settings header
+// above and the composer footer below.
+.agent-console-messages {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px;
+  padding: calc(var(--agent-gutter) * 1.6);
 }
 
 .agent-console-message-column {
@@ -535,7 +531,9 @@
 }
 
 .agent-console-message-bubble {
-  max-width: 86%;
+  // Answers carry code and JSON; capping them at a percentage of a docked
+  // panel wastes the right edge for no gain.
+  max-width: 100%;
   margin: 0;
   padding: 9px 12px;
   border: 1px solid vars.$color-midgray;
@@ -552,7 +550,9 @@
 }
 
 .agent-console-message--user .agent-console-message-bubble {
-  max-width: 72%;
+  // Kept short of the full width so the right-aligned prompt still reads as a
+  // prompt rather than a block.
+  max-width: 88%;
   border-color: rgba(83, 185, 114, 0.42);
   background-color: rgba(83, 185, 114, 0.14);
 }
@@ -850,12 +850,12 @@
 }
 
 .agent-console-error {
-  margin: vars.$margin-2 0;
+  margin: vars.$margin-2 var(--agent-gutter);
   color: vars.$color-red;
 }
 
 .agent-console-notice {
-  margin: vars.$margin-2 0;
+  margin: vars.$margin-2 var(--agent-gutter);
   color: vars.$color-green;
 }
 
@@ -863,7 +863,8 @@
   flex-shrink: 0;
   padding: vars.$margin-3;
   border-top: 1px solid vars.$color-midgray;
-  background-color: vars.$color-gray;
+  // Matches the session header, framing the conversation.
+  background-color: color.adjust(vars.$color-gray, $lightness: 7%);
 
   textarea {
     width: 100%;
@@ -897,7 +898,6 @@
 }
 
 @media screen and (prefers-reduced-motion: reduce) {
-  .agent-console-sidebar,
   .agent-console-tool-chevron,
   .agent-style-change-chevron {
     transition: none;
@@ -909,40 +909,3 @@
   }
 }
 
-@media screen and (max-width: 720px) {
-  .agent-console {
-    grid-template-columns: 48px minmax(0, 1fr) 48px;
-  }
-
-  .agent-console-sidebar-slot {
-    width: 48px;
-    z-index: 2;
-  }
-
-  .agent-console-sidebar {
-    inset: 0 auto 0 0;
-  }
-
-  .agent-console-sidebar--open {
-    width: min(300px, calc(100vw - 64px));
-    box-shadow: 12px 0 28px rgba(0, 0, 0, 0.44);
-  }
-
-  .agent-console-messages {
-    padding: vars.$margin-3;
-  }
-
-  .agent-console-message-bubble,
-  .agent-console-message--user .agent-console-message-bubble {
-    max-width: 92%;
-  }
-
-  .agent-style-change-preview {
-    position: absolute;
-    z-index: 3;
-    inset: 0 0 0 auto;
-    width: min(440px, calc(100% - 24px));
-    border-left: 1px solid vars.$color-midgray;
-    box-shadow: -12px 0 28px rgba(0, 0, 0, 0.44);
-  }
-}

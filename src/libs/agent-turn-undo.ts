@@ -34,6 +34,8 @@ function extractComposerContent(item: AgentInputItem) {
 export function undoLatestAgentTurn(
   session: AgentSession,
   styleBefore: StyleSpecification,
+  /** Title for a session emptied by the undo, supplied by the caller so the text stays translated. */
+  emptyTitle: string,
   updatedAt = Date.now()
 ): AgentTurnUndoResult | null {
   let userItemIndex = -1;
@@ -52,7 +54,7 @@ export function undoLatestAgentTurn(
   return {
     session: {
       ...session,
-      title: isEmpty ? "New session" : session.title,
+      title: isEmpty ? emptyTitle : session.title,
       inputItems,
       updatedAt,
       styleCheckpoint: isEmpty ? null : cloneDeep(styleBefore),

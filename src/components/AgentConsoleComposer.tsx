@@ -50,11 +50,8 @@ export function AgentConsoleComposer(props: AgentConsoleComposerProps) {
         }
       }}
       onPaste={event => {
-        const files = Array.from(event.clipboardData.items)
-          .filter(item => item.kind === "file" && item.type.startsWith("image/"))
-          .map(item => item.getAsFile())
-          .filter((file): file is File => file !== null);
-        props.onAddFiles(files);
+        // `onAddFiles` is the single gate on what counts as an attachable file.
+        props.onAddFiles(Array.from(event.clipboardData.files));
       }}
       placeholder={t("Describe what you want to inspect or change...")}
       disabled={props.busy || !props.sessionsReady}

@@ -14,8 +14,7 @@ describe("agent export", () => {
     const downloadNames: string[] = [];
     currentPage().on("download", download => downloadNames.push(download.suggestedFilename()));
 
-    await when.click("nav:agent-workspace");
-    await when.click("agent-workspace:tab-export");
+    await when.click("nav:export-image");
     await when.click("agent-export:both");
 
     await expect.poll(() => downloadNames.length).toBe(2);
@@ -23,5 +22,16 @@ describe("agent export", () => {
       "test_style-base.png",
       "test_style-overlay.png",
     ]);
+  });
+
+  test("downloads a composite PNG holding every layer", async () => {
+    const downloadNames: string[] = [];
+    currentPage().on("download", download => downloadNames.push(download.suggestedFilename()));
+
+    await when.click("nav:export-image");
+    await when.click("agent-export:composite");
+
+    await expect.poll(() => downloadNames.length).toBe(1);
+    expect(downloadNames).toEqual(["test_style-composite.png"]);
   });
 });

@@ -6,7 +6,12 @@ import {
 
 export const AGENT_EXPORT_SCALE = 2;
 
-export type ExportLayerMode = "base" | "overlay";
+/**
+ * `composite` keeps the map as it looks: base and overlay layers together.
+ * `base` and `overlay` split the two apart, which is what the overlay markers
+ * below are for.
+ */
+export type ExportLayerMode = "base" | "overlay" | "composite";
 
 export type ExportLayer = {
   id: string;
@@ -26,15 +31,12 @@ export type ExportVisibilityPlan = {
   }>;
 };
 
-export function isAgentOverlayLayerId(id: string) {
-  return id.startsWith(AGENT_OVERLAY_LAYER_PREFIX);
+function isAgentOverlayLayer(layer: ExportLayer) {
+  return layer.id.startsWith(AGENT_OVERLAY_LAYER_PREFIX)
+    || layer.metadata?.[AGENT_OVERLAY_METADATA_KEY] === AGENT_OVERLAY_ROLE;
 }
 
-export function isAgentOverlayLayer(layer: ExportLayer) {
-  return isAgentOverlayLayerId(layer.id) || layer.metadata?.[AGENT_OVERLAY_METADATA_KEY] === AGENT_OVERLAY_ROLE;
-}
-
-export function layerVisibility(layer: ExportLayer): ExportLayerVisibility {
+function layerVisibility(layer: ExportLayer): ExportLayerVisibility {
   return layer.layout?.visibility === "none" ? "none" : "visible";
 }
 
@@ -42,11 +44,13 @@ export function createExportVisibilityPlan(
   layers: readonly ExportLayer[],
   mode: ExportLayerMode
 ): ExportVisibilityPlan {
-  const normalizedLayers = layers ?? [];
-  const hide = normalizedLayers
-    .filter(layer => mode === "base" ? isAgentOverlayLayer(layer) : !isAgentOverlayLayer(layer))
-    .map(layer => layer.id);
-  const restore = normalizedLayers.map(layer => ({
+  // A composite export hides nothing, so it never touches layer visibility.
+  const hide = mode === "composite"
+    ? []
+    : layers
+      .filter(layer => mode === "base" ? isAgentOverlayLayer(layer) : !isAgentOverlayLayer(layer))
+      .map(layer => layer.id);
+  const restore = layers.map(layer => ({
     id: layer.id,
     visibility: layerVisibility(layer),
   }));

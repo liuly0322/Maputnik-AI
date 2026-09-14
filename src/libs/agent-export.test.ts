@@ -39,4 +39,16 @@ describe("agent-export", () => {
 
     expect(plan.hide).toEqual(["background", "water"]);
   });
+
+  it("hides nothing for a composite export", () => {
+    const plan = createExportVisibilityPlan(layers, "composite");
+
+    expect(plan.hide).toEqual([]);
+    expect(plan.restore).toEqual([
+      {id: "background", visibility: "visible"},
+      {id: "water", visibility: "none"},
+      {id: `${AGENT_OVERLAY_LAYER_PREFIX}points`, visibility: "visible"},
+      {id: "highlights", visibility: "none"},
+    ]);
+  });
 });

@@ -1,22 +1,19 @@
 @use "vars";
 
-.maputnik-datasets-modal {
-  width: 560px;
-  max-width: calc(100vw - 40px);
-}
-
+// The panel is a section inside the agent console's Data group, so it adds
+// spacing only: the group already provides the container.
 .dataset-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
   gap: vars.$margin-3;
+  padding: 0 var(--agent-gutter);
 }
 
 .dataset-panel-section {
-  padding: vars.$margin-4;
-  border: 1px solid vars.$color-midgray;
-  border-radius: 8px;
-  background-color: vars.$color-black;
+  display: flex;
+  flex-direction: column;
+  gap: vars.$margin-2;
 }
 
 .dataset-panel-section-header,
@@ -24,37 +21,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: vars.$margin-4;
-
-  h1 {
-    margin-top: vars.$margin-3;
-    margin-bottom: vars.$margin-2;
-  }
+  gap: vars.$margin-2;
 }
 
-.dataset-panel-section-header > div {
-  min-width: 0;
-}
-
-.dataset-panel-eyebrow,
-.agent-export-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: vars.$margin-1;
-  color: vars.$color-green;
+.dataset-panel-section-label {
+  color: vars.$color-lowgray;
   font-size: vars.$font-size-6;
   font-weight: bold;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-
-  svg {
-    width: 16px;
-    height: 16px;
-  }
 }
 
 .dataset-panel-description {
-  max-width: 720px;
   margin: 0;
   color: vars.$color-lowgray;
   line-height: 1.5;
@@ -65,17 +41,16 @@
 }
 
 .dataset-panel-status {
-  margin: vars.$margin-3 0 0;
+  margin: 0;
   color: vars.$color-green;
 }
 
-.dataset-panel-count,
-.agent-export-format {
+.dataset-panel-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 20px;
+  min-height: 20px;
   padding: 0 vars.$margin-2;
   border: 1px solid vars.$color-midgray;
   border-radius: 999px;
@@ -85,45 +60,36 @@
 }
 
 .dataset-panel-empty {
-  margin: vars.$margin-3 0 0;
-  padding: vars.$margin-4 vars.$margin-3;
+  margin: 0;
+  padding: vars.$margin-3;
   border: 1px dashed vars.$color-midgray;
-  border-radius: 6px;
+  border-radius: 4px;
   color: vars.$color-lowgray;
   text-align: center;
 }
 
 .maputnik-dataset-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: vars.$margin-2;
-  margin-top: vars.$margin-3;
 }
 
 .maputnik-dataset-item {
   display: flex;
   min-width: 0;
-  min-height: 142px;
   flex-direction: column;
-  gap: vars.$margin-3;
-  padding: vars.$margin-3;
+  gap: vars.$margin-2;
+  padding: vars.$margin-2 vars.$margin-3;
   border: 1px solid vars.$color-midgray;
-  border-radius: 6px;
-  background-color: vars.$color-gray;
+  border-radius: 4px;
+  background-color: vars.$color-black;
   text-align: left;
-  transition: border-color 120ms ease, background-color 120ms ease;
-
-  &:hover {
-    border-color: vars.$color-lowgray;
-    background-color: #292b31;
-  }
 }
 
 .maputnik-dataset-item-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  width: 100%;
   gap: vars.$margin-2;
 }
 
@@ -137,7 +103,6 @@
 }
 
 .maputnik-dataset-item-meta {
-  align-self: flex-start;
   color: vars.$color-lowgray;
   font-size: vars.$font-size-6;
 }
@@ -145,16 +110,13 @@
 .maputnik-dataset-item-columns {
   display: flex;
   flex-wrap: wrap;
-  align-content: flex-start;
-  width: 100%;
   gap: vars.$margin-1;
-  margin-top: auto;
 
   span {
     max-width: 100%;
-    padding: 3px 6px;
+    padding: 1px vars.$margin-2;
     overflow: hidden;
-    border-radius: 3px;
+    border-radius: 2px;
     background-color: vars.$color-midgray;
     color: vars.$color-lowgray;
     font-size: vars.$font-size-6;
@@ -166,33 +128,10 @@
 .maputnik-dataset-item-remove {
   flex: 0 0 auto;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: vars.$margin-2;
+  padding: vars.$margin-1;
 
   svg {
     width: 16px;
     height: 16px;
-  }
-}
-
-@media (max-width: 640px) {
-  .dataset-panel-section {
-    padding: vars.$margin-3;
-  }
-
-  .dataset-panel-section-header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: vars.$margin-3;
-  }
-
-  .dataset-panel-upload-button {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .maputnik-dataset-list {
-    grid-template-columns: 1fr;
   }
 }

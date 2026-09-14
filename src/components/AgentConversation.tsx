@@ -33,7 +33,7 @@ function MessageImages({message}: {message: AgentInputItem}) {
 }
 
 function isToolError(message: AgentConversationTool) {
-  return !!message.output && /^Error(?:\b|:)/.test(extractToolOutput(message.output).trim());
+  return !!message.output && /^Error\b/.test(extractToolOutput(message.output).trim());
 }
 
 function ToolDetails({tools, groupId}: {tools: AgentConversationTool[]; groupId: string}) {
