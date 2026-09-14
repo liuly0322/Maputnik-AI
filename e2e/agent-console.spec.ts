@@ -96,6 +96,50 @@ describe("agent console", () => {
     await then(get.elementByTestId("layer-list-item:agent-native-layer")).shouldExist();
   });
 
+  test("keeps a tool call's style changes when the call also moves the map", async () => {
+    const page = currentPage();
+    const code = `
+      const nextStyle = map.getStyle();
+      for (let index = 0; index < 4; index += 1) {
+        nextStyle.layers.push({id: "probe-" + index, type: "background"});
+      }
+      map.setStyle(nextStyle);
+      map.jumpTo({center: [121.47, 31.23], zoom: 11});
+      // Moving the map makes the editor update its camera, and yielding here
+      // lets that update land before this call returns.
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return map.getStyle().layers.length;
+    `;
+    await page.route("http://localhost:8888/responses", route => {
+      const body = route.request().postDataJSON();
+      if ((body.input ?? []).some((item: any) => item.type === "function_call_output")) {
+        return route.fulfill({contentType: "text/event-stream", body: ""});
+      }
+      return route.fulfill({
+        contentType: "text/event-stream",
+        body: [
+          "event: response.output_item.done",
+          `data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"probe","name":"run_javascript","arguments":${JSON.stringify(JSON.stringify({code}))}}}`,
+          "",
+          "",
+        ].join("\n"),
+      });
+    });
+
+    await when.click("nav:agent-workspace");
+    await when.click("agent-console-group:API settings");
+    await when.setValue("agent-console:api-key", "test-key");
+    await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
+    await when.setValue("agent-console:model", "test-model");
+    await when.setValue("agent-console:input", "Add four probe layers and move the map");
+    await when.click("agent-console:send");
+
+    // The layer list renders the editor's copy of the style, so the layers
+    // being there means the map's state reached it rather than being reverted.
+    await then(get.elementByTestId("layer-list-item:probe-0")).shouldExist();
+    await then(get.elementByTestId("layer-list-item:probe-3")).shouldExist();
+  });
+
   test("pastes text and an image into the agent input", async () => {
     const page = currentPage();
     const requestBodies: any[] = [];

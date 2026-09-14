@@ -118,15 +118,21 @@ class MapMaplibreGlInternal extends React.Component<MapMaplibreGlInternalProps, 
     return should;
   }
 
-  componentDidUpdate() {
+  componentDidUpdate(prevProps: MapMaplibreGlInternalProps) {
     const map = this.state.map;
 
     const styleWithTokens = this.props.replaceAccessTokens(this.props.mapStyle);
     if (map) {
-      // Maplibre GL now does diffing natively so we don't need to calculate
-      // the necessary operations ourselves!
-      // We also need to update the style for inspect to work properly
-      map.setStyle(styleWithTokens, {diff: true});
+      // Only re-apply the style when the style prop changed: the app replaces
+      // the object on every change, so identity is reliable, and this component
+      // also updates for viewport and option changes, which are no reason to
+      // push the style back over the live map.
+      if (prevProps.mapStyle !== this.props.mapStyle) {
+        // Maplibre GL now does diffing natively so we don't need to calculate
+        // the necessary operations ourselves!
+        // We also need to update the style for inspect to work properly
+        map.setStyle(styleWithTokens, {diff: true});
+      }
       map.showTileBoundaries = this.props.options?.showTileBoundaries!;
       map.showCollisionBoxes = this.props.options?.showCollisionBoxes!;
       map.showOverdrawInspector = this.props.options?.showOverdrawInspector!;
