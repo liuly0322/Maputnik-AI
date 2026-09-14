@@ -7,7 +7,7 @@
   flex-direction: column;
   min-height: 0;
   gap: vars.$margin-3;
-  padding: 0 var(--agent-gutter);
+  padding: vars.$margin-3;
 }
 
 .dataset-panel-section {
