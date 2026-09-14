@@ -12,7 +12,7 @@ describe("agent console", () => {
 
   test("treats the legacy mbgljs renderer as MapLibre", async () => {
     await when.setStyle("legacy_mbgljs");
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
 
     await then(get.elementByTestId("agent-console:map-status")).shouldContainText("Live map is attached.");
     await when.click("nav:export-image");
@@ -23,7 +23,7 @@ describe("agent console", () => {
     await when.click("nav:settings");
     await when.select("modal:settings.maputnik:renderer", "ol");
     await when.modal.close("modal:settings");
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
 
     const message = "Live map access requires the MapLibreGL JS renderer. Switch the style renderer in Settings.";
     await then(get.elementByTestId("agent-console:map-status")).shouldContainText(message);
@@ -45,7 +45,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -76,7 +76,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -105,8 +105,7 @@ describe("agent console", () => {
       }
       map.setStyle(nextStyle);
       map.jumpTo({center: [121.47, 31.23], zoom: 11});
-      // Moving the map makes the editor update its camera, and yielding here
-      // lets that update land before this call returns.
+      // Yielding here lets the editor's camera update land first.
       await new Promise(resolve => setTimeout(resolve, 300));
       return map.getStyle().layers.length;
     `;
@@ -126,7 +125,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -134,8 +133,8 @@ describe("agent console", () => {
     await when.setValue("agent-console:input", "Add four probe layers and move the map");
     await when.click("agent-console:send");
 
-    // The layer list renders the editor's copy of the style, so the layers
-    // being there means the map's state reached it rather than being reverted.
+    // The layer list renders the editor's copy, so being listed means the
+    // map's state reached it.
     await then(get.elementByTestId("layer-list-item:probe-0")).shouldExist();
     await then(get.elementByTestId("layer-list-item:probe-3")).shouldExist();
   });
@@ -151,7 +150,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -203,7 +202,7 @@ describe("agent console", () => {
       };
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -250,7 +249,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -258,8 +257,7 @@ describe("agent console", () => {
     await when.setValue("agent-console:input", "Save original style");
     await when.click("agent-console:send");
 
-    // The turn just saved the live style, so this session can have drifted from
-    // nothing and there is no restore to offer.
+    // This turn saved the live style, so nothing has drifted.
     await then(get.elementByTestId("agent-console:style-drift")).shouldNotExist();
 
     await when.openSessionPicker();
@@ -270,8 +268,7 @@ describe("agent console", () => {
     await then(get.elementByTestId("agent-console:style-drift")).shouldNotExist();
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual(changedStyleName);
 
-    // Switching shows the other conversation without touching the map, so the
-    // two have drifted and the panel has to say so.
+    // Switching changes the conversation, not the map, so the two have drifted.
     await when.openSessionPicker();
     await get.element(".agent-session-picker__select").filter({hasText: "Save original style"}).click();
     await then(get.styleFromLocalStorage().then(style => style.name)).shouldEqual(changedStyleName);
@@ -279,7 +276,7 @@ describe("agent console", () => {
 
     await when.modal.close("agent-workspace-panel");
     await when.setStyle("");
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.openSessionPicker();
     await get.element(".agent-session-picker__select").filter({hasText: "Save original style"}).click();
     await then(get.elementByTestId("agent-console:style-drift")).shouldBeVisible();
@@ -329,7 +326,7 @@ describe("agent console", () => {
       return route.fulfill({contentType: "text/event-stream", body: ""});
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -355,8 +352,7 @@ describe("agent console", () => {
     expect(await get.elementsText("agent-console:messages").get()).not.toContain("Second request");
     await then(get.elementByTestId("agent-console:input")).shouldHaveValue("Second request");
     await then(get.element(".agent-console-pending-image")).shouldExist();
-    // There is no longer a turn to act on, so the row goes rather than sitting
-    // there disabled.
+    // No turn left to act on, so the row is gone rather than disabled.
     await then(get.elementByTestId("agent-console:undo-turn")).shouldNotExist();
   });
 
@@ -380,7 +376,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -402,7 +398,7 @@ describe("agent console", () => {
     await when.click("layer-list-item:rectangles");
     await when.setValue("spec-field-input:fill-opacity", "0.1");
     await when.click("layer-editor.layer-id");
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.modal.openAgentStyleChanges();
     await when.modal.toggleAgentStyleChange(0);
     await then(get.element("#agent-style-change-0")).shouldContainText("0.8");
@@ -437,7 +433,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -475,7 +471,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -511,7 +507,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -519,8 +515,8 @@ describe("agent console", () => {
     await when.setValue("agent-console:input", "Add a layer");
     await when.click("agent-console:send");
 
-    // addLayer returns normally for a rejected layer, so the only way the model
-    // can learn it failed is if the map's error reaches the tool output.
+    // addLayer returns normally for a rejected layer, so the error has to
+    // reach the tool output for the model to learn anything.
     await when.click("agent-console:tool-details-toggle");
     await then(get.element(".agent-console-tool-output")).shouldContainText("called addLayer");
     await then(get.element(".agent-console-tool-output")).shouldContainText("MapLibre reported");
@@ -529,7 +525,7 @@ describe("agent console", () => {
   });
 
   test("wraps long unbroken messages without widening the console", async () => {
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -556,7 +552,7 @@ describe("agent console", () => {
       });
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:API settings");
     await when.setValue("agent-console:api-key", "test-key");
     await when.setValue("agent-console:endpoint", "http://localhost:8888/responses");
@@ -568,7 +564,7 @@ describe("agent console", () => {
     await when.modal.close("agent-workspace-panel");
     await then(get.elementByTestId("agent-console:generating")).shouldNotBeVisible();
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await then(get.elementByTestId("agent-console:messages")).shouldContainText("Hello from the background agent");
   });
 });

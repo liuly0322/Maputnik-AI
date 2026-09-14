@@ -191,6 +191,18 @@ export class MaputnikDriver {
     },
 
     /**
+     * Ensures the agent workspace is open. It opens on load, so the toolbar
+     * button is a toggle rather than a way in, and a closed column is 1px wide.
+     */
+    openAgentWorkspace: async () => {
+      const box = await this.helper.get.elementBox("agent-workspace-panel").get();
+      if (box && box.width > 100) {
+        return;
+      }
+      await this.helper.when.click("nav:agent-workspace");
+    },
+
+    /**
      * Picks a source for the selected layer from the source autocomplete.
      * The autocomplete is a controlled (downshift) input, so the value has to be
      * filled rather than typed key by key, then chosen from the filtered menu.

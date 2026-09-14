@@ -138,10 +138,11 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         this.sessionStore.close();
         return;
       }
+      // Deliberately none selected: a session is picked, not restored.
       this.setState({
         sessions,
         sessionsReady: true,
-        activeSessionId: sessions[0]?.id ?? null,
+        activeSessionId: null,
       });
     }
     catch (error) {

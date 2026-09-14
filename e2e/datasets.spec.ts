@@ -12,7 +12,7 @@ describe("datasets", () => {
   });
 
   test("uploads a CSV dataset and keeps it after reload", async () => {
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await then(get.elementByTestId("agent-workspace-panel")).shouldExist();
     await when.click("agent-console-group:Data");
 
@@ -27,12 +27,12 @@ describe("datasets", () => {
     await when.modal.close("agent-workspace-panel");
     await when.setStyle("");
     await when.wait(1000);
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await then(get.elementByTestId("datasets:list")).shouldContainText("points.csv");
   });
 
   test("deletes an uploaded CSV dataset", async () => {
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:Data");
     await when.chooseCsvFromPicker("remove-me.csv", csv);
 
@@ -48,7 +48,7 @@ describe("datasets", () => {
       return route.fulfill({contentType: "text/event-stream", body: ""});
     });
 
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:Data");
     await when.chooseCsvFromPicker("catalog.csv", csv);
 
@@ -65,7 +65,7 @@ describe("datasets", () => {
   });
 
   test("shows a parsing error without adding a malformed CSV dataset", async () => {
-    await when.click("nav:agent-workspace");
+    await when.openAgentWorkspace();
     await when.click("agent-console-group:Data");
 
     await when.chooseCsvFromPicker("broken.csv", 'name,value\n"unterminated,1');

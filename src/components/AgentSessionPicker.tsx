@@ -25,6 +25,13 @@ type AgentSessionPickerProps = {
 export function AgentSessionPicker(props: AgentSessionPickerProps) {
   const {t} = props;
   const activeSession = props.sessions.find(session => session.id === props.activeSessionId);
+  // With nothing selected the trigger has to read as "pick one", not as a
+  // button that makes one, and with none to pick it says what it does.
+  const title = activeSession
+    ? activeSession.title
+    : props.sessions.length === 0
+      ? t("New session")
+      : t("Select a session");
 
   const handleSelection = (value: string) => {
     if (value === NEW_SESSION_VALUE) {
@@ -48,7 +55,7 @@ export function AgentSessionPicker(props: AgentSessionPickerProps) {
       data-wd-key="agent-console:session-picker"
     >
       <span className="agent-session-picker__title">
-        {activeSession ? activeSession.title : t("New session")}
+        {title}
       </span>
       <MdArrowDropDown />
     </Button>
