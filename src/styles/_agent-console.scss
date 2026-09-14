@@ -868,14 +868,18 @@
   font-size: vars.$font-size-6;
 }
 
-.agent-console-error {
+.agent-console-feedback {
+  flex-shrink: 0;
   margin: vars.$margin-2 var(--agent-gutter);
-  color: vars.$color-red;
-}
+  overflow-wrap: anywhere;
 
-.agent-console-notice {
-  margin: vars.$margin-2 var(--agent-gutter);
-  color: vars.$color-green;
+  &--error {
+    color: vars.$color-red;
+  }
+
+  &--success {
+    color: vars.$color-green;
+  }
 }
 
 .agent-console-composer {

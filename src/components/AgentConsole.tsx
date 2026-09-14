@@ -41,8 +41,10 @@ type AgentConsoleInternalState = {
   styleDrifted: boolean;
   stylePreviewOpen: boolean;
   busy: boolean;
-  error?: string;
-  notice?: string;
+  feedback?: {
+    kind: "success" | "info" | "error";
+    message: string;
+  };
 };
 
 const SETTINGS_KEY = "maputnik:agent_settings";
@@ -100,6 +102,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
   private messagesEndRef = React.createRef<HTMLDivElement>();
   private sessionStore = new AgentSessionStore();
   private settingsSaveTimer: number | null = null;
+  private feedbackTimer: number | null = null;
   private streamingUpdateTimer: number | null = null;
   private pendingStreamingItems: {sessionId: string; inputItems: AgentInputItem[]} | null = null;
   private shouldAutoScrollAfterUpdate = false;
@@ -149,12 +152,24 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       if (!this.mounted) return;
       this.setState({
         sessionsReady: true,
-        error: `${this.props.t("Could not load agent sessions")}: ${error instanceof Error ? error.message : String(error)}`,
+        feedback: {kind: "error", message: `${this.props.t("Could not load agent sessions")}: ${error instanceof Error ? error.message : String(error)}`},
       });
     }
   };
 
-  componentDidUpdate() {
+  componentDidUpdate(_prevProps: AgentConsoleInternalProps, prevState: AgentConsoleInternalState) {
+    if (prevState.feedback !== this.state.feedback) {
+      if (this.feedbackTimer !== null) {
+        window.clearTimeout(this.feedbackTimer);
+        this.feedbackTimer = null;
+      }
+      if (this.state.feedback?.kind === "success") {
+        this.feedbackTimer = window.setTimeout(() => {
+          this.feedbackTimer = null;
+          this.setState({feedback: undefined});
+        }, 4000);
+      }
+    }
     if (!this.shouldAutoScrollAfterUpdate) return;
     this.shouldAutoScrollAfterUpdate = false;
     this.messagesEndRef.current?.scrollIntoView({behavior: "smooth", block: "end"});
@@ -170,6 +185,9 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
 
   componentWillUnmount() {
     this.mounted = false;
+    if (this.feedbackTimer !== null) {
+      window.clearTimeout(this.feedbackTimer);
+    }
     if (this.settingsSaveTimer !== null) {
       window.clearTimeout(this.settingsSaveTimer);
     }
@@ -275,7 +293,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     catch (error) {
       if (this.mounted) {
         this.setState({
-          error: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`,
+          feedback: {kind: "error", message: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`},
         });
       }
       return false;
@@ -309,7 +327,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     catch (error) {
       if (!this.mounted) return;
       this.setState({
-        error: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`,
+        feedback: {kind: "error", message: `${this.props.t("Could not save agent session")}: ${error instanceof Error ? error.message : String(error)}`},
       });
     }
   };
@@ -326,7 +344,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     };
     const sessions = [session, ...this.state.sessions];
     // A fresh session has no saved style, so there is nothing to have drifted from.
-    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], stylePreviewOpen: false, error: undefined, notice: undefined, styleDrifted: false});
+    this.setState({sessions, activeSessionId: session.id, input: "", pendingImages: [], stylePreviewOpen: false, feedback: undefined, styleDrifted: false});
     void this.persistSession(session);
   };
 
@@ -349,8 +367,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       input: "",
       pendingImages: [],
       stylePreviewOpen: false,
-      error: undefined,
-      notice: undefined,
+      feedback: undefined,
       styleDrifted: this.driftFor(sessionId),
     });
   };
@@ -368,14 +385,13 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       input: "",
       pendingImages: [],
       stylePreviewOpen: false,
-      error: undefined,
-      notice: undefined,
+      feedback: undefined,
       styleDrifted: this.driftFor(activeSessionId),
     });
     void this.sessionStore.delete(sessionId).catch(error => {
       if (!this.mounted) return;
       this.setState({
-        error: `${this.props.t("Could not delete agent session")}: ${error instanceof Error ? error.message : String(error)}`,
+        feedback: {kind: "error", message: `${this.props.t("Could not delete agent session")}: ${error instanceof Error ? error.message : String(error)}`},
       });
     });
   };
@@ -392,15 +408,13 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     try {
       this.props.updateMaputnikStyle(cloneDeep(session.styleCheckpoint));
       this.setState({
-        error: undefined,
-        notice: this.props.t("The latest saved style for this conversation has been loaded."),
+        feedback: {kind: "success", message: this.props.t("The latest saved style for this conversation has been loaded.")},
         styleDrifted: false,
       });
     }
     catch (error) {
       this.setState({
-        notice: undefined,
-        error: `${this.props.t("Could not load map style")}: ${error instanceof Error ? error.message : String(error)}`,
+        feedback: {kind: "error", message: `${this.props.t("Could not load map style")}: ${error instanceof Error ? error.message : String(error)}`},
       });
     }
   };
@@ -418,8 +432,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const currentStyle = cloneDeep(this.props.getMaputnikStyle());
     if (!session.styleCheckpoint || !isEqual(currentStyle, session.styleCheckpoint)) {
       this.setState({
-        notice: undefined,
-        error: this.props.t("The map has changed since this turn ended. Load this conversation's saved style before undoing the turn."),
+        feedback: {kind: "error", message: this.props.t("The map has changed since this turn ended. Load this conversation's saved style before undoing the turn.")},
       });
       return;
     }
@@ -427,8 +440,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
     const result = undoLatestAgentTurn(session, styleBefore, this.props.t("New session"));
     if (!result) {
       this.setState({
-        notice: undefined,
-        error: this.props.t("Could not undo agent turn"),
+        feedback: {kind: "error", message: this.props.t("Could not undo agent turn")},
       });
       return;
     }
@@ -450,16 +462,14 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         input: result.input,
         pendingImages: result.pendingImages,
         stylePreviewOpen: false,
-        error: undefined,
-        notice: this.props.t("The latest agent turn has been undone."),
+        feedback: {kind: "success", message: this.props.t("The latest agent turn has been undone.")},
         // The undo applied the checkpoint it just rolled back to.
         styleDrifted: false,
       }));
     }
     catch (error) {
       this.setState({
-        notice: undefined,
-        error: `${this.props.t("Could not undo agent turn")}: ${error instanceof Error ? error.message : String(error)}`,
+        feedback: {kind: "error", message: `${this.props.t("Could not undo agent turn")}: ${error instanceof Error ? error.message : String(error)}`},
       });
     }
   };
@@ -476,7 +486,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       model: this.state.model.trim(),
     };
     if (!settings.apiKey || !settings.endpoint || !settings.model) {
-      this.setState({error: this.props.t("API key, endpoint, and model are required.")});
+      this.setState({feedback: {kind: "error", message: this.props.t("API key, endpoint, and model are required.")}});
       return;
     }
 
@@ -521,8 +531,7 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
       activeSessionId,
       busy: true,
       stylePreviewOpen: false,
-      error: undefined,
-      notice: undefined,
+      feedback: undefined,
     });
 
     const nextSession = sessions.find(session => session.id === activeSessionId)!;
@@ -544,13 +553,13 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         },
       });
       if (result === "max-tool-rounds" && this.mounted) {
-        this.setState({notice: this.props.t("Reached the maximum of {{count}} tool calls. Send another message to continue.", {count: MAX_TOOL_ROUNDS})});
+        this.setState({feedback: {kind: "info", message: this.props.t("Reached the maximum of {{count}} tool calls. Send another message to continue.", {count: MAX_TOOL_ROUNDS})}});
       }
     }
     catch (error) {
       if (!abortController.signal.aborted) {
         this.setState({
-          error: error instanceof Error ? error.message : String(error),
+          feedback: {kind: "error", message: error instanceof Error ? error.message : String(error)},
         });
       }
     }
@@ -587,8 +596,6 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
         />
       </div>
       <main className="agent-console-main">
-        {this.state.error && <p className="agent-console-error" data-wd-key="agent-console:error">{this.state.error}</p>}
-        {this.state.notice && <p className="agent-console-notice" role="status" data-wd-key="agent-console:notice">{this.state.notice}</p>}
         <AgentConsoleChat
           t={t}
           session={activeSession}
@@ -608,6 +615,11 @@ class AgentConsoleInternal extends React.Component<AgentConsoleInternalProps, Ag
           onLoadStyle={this.onLoadStyle}
           styleDrifted={this.state.styleDrifted}
           onCloseStylePreview={() => this.setState({stylePreviewOpen: false})}
+          feedback={this.state.feedback && <p
+            className={`agent-console-feedback agent-console-feedback--${this.state.feedback.kind}`}
+            role={this.state.feedback.kind === "error" ? "alert" : "status"}
+            data-wd-key={this.state.feedback.kind === "error" ? "agent-console:error" : "agent-console:notice"}
+          >{this.state.feedback.message}</p>}
           composer={<AgentConsoleComposer
             t={t}
             input={this.state.input}

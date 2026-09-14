@@ -28,6 +28,7 @@ type AgentConsoleChatProps = {
   onUndoTurn(): void;
   onLoadStyle(): void;
   onCloseStylePreview(): void;
+  feedback?: React.ReactNode;
   composer: React.ReactNode;
 };
 
@@ -97,6 +98,7 @@ export function AgentConsoleChat(props: AgentConsoleChatProps) {
         {t("Undo")}
       </button>
     </div>}
+    {props.feedback}
     {props.composer}
   </section>;
 }
