@@ -286,6 +286,14 @@
   background-color: color.adjust(vars.$color-gray, $lightness: 7%);
 }
 
+// The conversation's two bright surfaces sit close enough to the button fill
+// that a plain button loses its edge on them, so these carry a border, as the
+// turn actions do.
+.agent-console-chat-header .maputnik-button:not(.maputnik-white-button),
+.agent-console-composer .maputnik-button:not(.maputnik-white-button) {
+  border: 1px solid vars.$color-lowgray;
+}
+
 .agent-console-turn-action {
   border: 1px solid vars.$color-lowgray;
   line-height: 1.2;
