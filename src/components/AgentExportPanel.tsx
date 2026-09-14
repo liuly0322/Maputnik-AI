@@ -5,7 +5,7 @@ import type {Map} from "maplibre-gl";
 
 import {InputButton} from "./InputButton";
 import {
-  AGENT_EXPORT_SCALE,
+  AGENT_EXPORT_PIXEL_RATIO,
   createExportVisibilityPlan,
   type ExportLayer,
   type ExportLayerMode,
@@ -54,21 +54,40 @@ function restoreLayerVisibility(map: Map, plan: ExportVisibilityPlan) {
   }
 }
 
-function createExportCanvas(map: Map) {
-  const container = map.getContainer();
-  const sourceCanvas = map.getCanvas();
+/**
+ * Renders the map at `pixelRatio` and copies the result before putting the map
+ * back. The copy is not optional: restoring the ratio resizes the canvas this
+ * is reading from. A map already drawing at least this densely — a HiDPI
+ * screen, say — is taken as it stands rather than re-rendered.
+ */
+async function captureAtPixelRatio(map: Map, pixelRatio: number) {
+  const previous = map.getPixelRatio();
+  if (previous >= pixelRatio) {
+    return copyCanvas(map.getCanvas());
+  }
 
-  const width = Math.max(1, Math.round(container.clientWidth * AGENT_EXPORT_SCALE));
-  const height = Math.max(1, Math.round(container.clientHeight * AGENT_EXPORT_SCALE));
+  map.setPixelRatio(pixelRatio);
+  try {
+    await waitForMapSettled(map);
+    await waitForMapIdle(map);
+    return copyCanvas(map.getCanvas());
+  }
+  finally {
+    map.setPixelRatio(previous);
+  }
+}
+
+/** A plain copy, at the source's own resolution. */
+function copyCanvas(source: HTMLCanvasElement) {
   const out = document.createElement("canvas");
-  out.width = width;
-  out.height = height;
+  out.width = source.width;
+  out.height = source.height;
 
   const ctx = out.getContext("2d");
   if (!ctx) {
     return null;
   }
-  ctx.drawImage(sourceCanvas, 0, 0, sourceCanvas.width, sourceCanvas.height, 0, 0, width, height);
+  ctx.drawImage(source, 0, 0);
   return out;
 }
 
@@ -131,7 +150,7 @@ class AgentExportPanelInternal extends React.Component<AgentExportPanelInternalP
       }
       await waitForMapIdle(map);
 
-      const canvas = createExportCanvas(map);
+      const canvas = await captureAtPixelRatio(map, AGENT_EXPORT_PIXEL_RATIO);
       if (!canvas) {
         throw new Error(this.props.t("Could not create export canvas"));
       }

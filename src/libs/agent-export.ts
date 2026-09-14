@@ -4,7 +4,12 @@ import {
   AGENT_OVERLAY_ROLE,
 } from "./agent-overlay";
 
-export const AGENT_EXPORT_SCALE = 2;
+/**
+ * Density the map is re-rendered at for an export. Scaling an already-rendered
+ * canvas would only interpolate its pixels, so the extra detail has to come
+ * from drawing the style again at this ratio.
+ */
+export const AGENT_EXPORT_PIXEL_RATIO = 2;
 
 /**
  * `composite` keeps the map as it looks: base and overlay layers together.
