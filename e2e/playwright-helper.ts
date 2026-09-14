@@ -310,10 +310,6 @@ export class PlaywrightHelper {
       }, {name, mimeType, content});
     },
 
-    clickButtonByName: async (name: string) => {
-      await this.page.getByRole("button", { name }).click();
-    },
-
     click: async (testId: string, index = 0) => {
       // Documentation buttons are wrapped in a <label>/.maputnik-doc-target that
       // Playwright treats as intercepting the click; bypass the check for them.

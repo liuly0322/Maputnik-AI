@@ -125,7 +125,7 @@ export class MaputnikDriver {
     },
 
     openASecondStyleWithDifferentZoomAndCenter: async () => {
-      await this.helper.when.clickButtonByName("Open");
+      await this.helper.when.click("nav:open");
       const input = this.helper.get.elementByTestId("modal:open.url.input");
       await input.fill("http://localhost:8889/example-style-with-zoom-5-and-center-50-50.json");
       await input.press("Enter");
