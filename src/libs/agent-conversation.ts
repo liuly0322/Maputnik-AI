@@ -35,12 +35,19 @@ export function extractMessageImages(item: AgentInputItem) {
 export function extractToolOutput(item: AgentInputItem) {
   if (item.output === undefined || item.output === null || item.output === "") return "(no output)";
   if (typeof item.output === "string") return item.output;
+  if (Array.isArray(item.output)) {
+    return item.output.filter(part => part.type === "input_text").map(part => part.text).join("\n");
+  }
   try {
     return JSON.stringify(item.output, null, 2);
   }
   catch {
     return String(item.output);
   }
+}
+
+export function extractToolImages(item: AgentInputItem) {
+  return extractMessageImages({content: item.output});
 }
 
 export function extractToolCode(call?: AgentInputItem): string | undefined {

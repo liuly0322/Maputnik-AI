@@ -13,6 +13,11 @@ export type AgentSettings = {
 
 export type AgentInputItem = Record<string, any>;
 
+export type AgentToolOutput = string | Array<
+  | {type: "input_text"; text: string}
+  | {type: "input_image"; image_url: string; detail: "auto"}
+>;
+
 export type AgentStreamEvent = {
   type: string;
   data: any;
@@ -25,8 +30,8 @@ export function normalizeEndpoint(endpoint: string) {
 export function defaultAgentSettings(): AgentSettings {
   return {
     apiKey: "",
-    endpoint: "https://api.openai.com/v1/responses",
-    model: "gpt-4.1-mini",
+    endpoint: "https://api.deepseek.com/responses",
+    model: "deepseek-flash",
   };
 }
 
@@ -167,6 +172,7 @@ A FeatureCollection<Point> can be filtered or mapped to create another FeatureCo
 - Give every new source and layer a unique, descriptive ID so one dataset can support multiple independent visualizations.
 - When a task changes state, verify the affected result in the same execution when practical, and return concise verification information.
 - Return summaries, counts, IDs, and selected fields rather than complete map, style, feature, or dataset objects.
+- Use capture_map_screenshot before final verification or when planning the next adjustment.
 
 # Dataset overlay rules
 
@@ -213,11 +219,26 @@ export function createUserInputItem(text: string, images: string[] = []): AgentI
   };
 }
 
-export function createFunctionCallOutputItem(callId: string, output: string): AgentInputItem {
+export function createFunctionCallOutputItem(callId: string, output: AgentToolOutput): AgentInputItem {
   return {
     type: "function_call_output",
     call_id: callId,
     output,
+  };
+}
+
+export function captureMapScreenshotToolDefinition() {
+  return {
+    type: "function",
+    name: "capture_map_screenshot",
+    description: "Capture the current live map canvas as a JPEG image (maximum edge 1024px, at most 256 KiB including Base64), with dimensions and viewport.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
   };
 }
 
@@ -284,7 +305,7 @@ export async function* streamResponsesApi(
       model: settings.model,
       instructions,
       input,
-      tools: [runJavascriptToolDefinition()],
+      tools: [runJavascriptToolDefinition(), captureMapScreenshotToolDefinition()],
       tool_choice: "auto",
       stream: true,
     }),

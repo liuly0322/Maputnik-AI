@@ -228,6 +228,18 @@ export class PlaywrightHelper {
   public then = <T>(target: T): Assertable<T> => new Assertable(target);
 
   public given = {
+    mockEventStream: async (url: string, responses: Array<Array<{type: string; [key: string]: unknown}>>) => {
+      const requests: any[] = [];
+      await this.page.route(url, route => {
+        requests.push(route.request().postDataJSON());
+        const events = responses[requests.length - 1] ?? [];
+        return route.fulfill({
+          contentType: "text/event-stream",
+          body: events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(""),
+        });
+      });
+      return requests;
+    },
     /**
      * Removes the File System Access API so the app falls back to a plain
      * <input type="file">, the way Firefox and Safari behave. Must be called
@@ -482,6 +494,21 @@ export class PlaywrightHelper {
   };
 
   public get = {
+    imageDetails: (testId: string) => new Query(() => this.testId(testId).evaluate(async element => {
+      const image = element as HTMLImageElement;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d")!;
+      context.drawImage(image, 0, 0);
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        dataUrlBytes: image.src.length,
+        centerPixel: Array.from(context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data),
+      };
+    })),
     element: (selector: string) => this.page.locator(selector),
 
     localStorageItem: (key: string) =>

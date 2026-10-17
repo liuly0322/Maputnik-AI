@@ -9,6 +9,7 @@ import {
   extractMessageText,
   extractMessageImages,
   extractToolOutput,
+  extractToolImages,
   extractToolCode,
   type AgentConversationTool,
 } from "../libs/agent-conversation";
@@ -79,6 +80,13 @@ function ToolDetails({tools, groupId}: {tools: AgentConversationTool[]; groupId:
             : <div className="agent-console-tool-section">
               <h2>{t("Output")}</h2>
               <pre className="agent-console-tool-output">{extractToolOutput(tool.output)}</pre>
+              {extractToolImages(tool.output).map((image, imageIndex) => <img
+                className="agent-console-message-image"
+                src={image}
+                alt={t("Map screenshot")}
+                data-wd-key="agent-console:tool-screenshot"
+                key={imageIndex}
+              />)}
             </div>}
         </section>;
       })}

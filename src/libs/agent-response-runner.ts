@@ -3,12 +3,14 @@ import {
   streamResponsesApi,
   type AgentInputItem,
   type AgentSettings,
+  type AgentToolOutput,
 } from "./agent-client";
 import {
   executeAgentJavaScript,
   truncateToolOutput,
   type AgentExecutionContext,
 } from "./agent-executor";
+import {captureMapScreenshot} from "./agent-screenshot";
 
 export const MAX_TOOL_ROUNDS = 20;
 
@@ -87,22 +89,25 @@ export async function runAgentResponseLoop(options: AgentResponseRunnerOptions) 
 
     for (const functionCall of functionCalls) {
       if (options.signal.aborted) return;
-      let code = "";
+      let output: AgentToolOutput;
       try {
-        code = JSON.parse(functionCall.arguments ?? "{}").code ?? "";
-      }
-      catch {
-        // Keep the default empty code when tool arguments cannot be parsed.
-      }
-      let output: string;
-      try {
-        output = await executeAgentJavaScript(code, options.createExecutionContext());
+        const args = JSON.parse(functionCall.arguments ?? "{}");
+        if (functionCall.name === "capture_map_screenshot") {
+          output = await captureMapScreenshot(options.createExecutionContext().map, options.signal);
+        }
+        else if (functionCall.name === "run_javascript") {
+          if (typeof args.code !== "string") throw new Error("run_javascript requires a code string");
+          output = await executeAgentJavaScript(args.code, options.createExecutionContext());
+        }
+        else {
+          throw new Error(`Unknown tool: ${functionCall.name}`);
+        }
       }
       catch (error) {
         output = `Error: ${error instanceof Error ? error.stack || error.message : String(error)}`;
       }
       if (options.signal.aborted) return;
-      output = truncateToolOutput(output);
+      if (typeof output === "string") output = truncateToolOutput(output);
       inputItems = [...inputItems, createFunctionCallOutputItem(functionCall.call_id, output)];
       await publish(true);
     }
