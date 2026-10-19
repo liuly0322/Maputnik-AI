@@ -12,7 +12,7 @@ import {
 } from "./agent-executor";
 import {captureMapScreenshot} from "./agent-screenshot";
 
-export const MAX_TOOL_ROUNDS = 20;
+export const MAX_TOOL_ROUNDS = 40;
 
 type AgentResponseRunnerOptions = {
   settings: AgentSettings;
