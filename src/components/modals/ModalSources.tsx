@@ -312,6 +312,7 @@ class ModalSourcesInternal extends React.Component<ModalSourcesInternalProps> {
 
     return <Modal
       data-wd-key="modal:sources"
+      className="maputnik-sources-modal"
       isOpen={this.props.isOpen}
       onOpenToggle={this.props.onOpenToggle}
       title={t("Sources")}
@@ -326,7 +327,7 @@ class ModalSourcesInternal extends React.Component<ModalSourcesInternalProps> {
         <p>
           {t("Add one of the publicly available sources to your style.")}
         </p>
-        <div className="maputnik-public-sources" style={{maxWidth: 500}}>
+        <div className="maputnik-public-sources">
           {tilesetOptions}
         </div>
       </section>

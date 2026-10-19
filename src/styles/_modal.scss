@@ -204,6 +204,24 @@
 }
 
 //SOURCE MODAL
+.maputnik-sources-modal {
+  width: 850px;
+  max-width: min(850px, calc(100vw - 40px));
+
+  .maputnik-input-block-action {
+    display: none;
+    width: 0;
+  }
+
+  .maputnik-input-block-label {
+    width: 22%;
+  }
+
+  .maputnik-input-block-content {
+    width: 78%;
+  }
+}
+
 .maputnik-public-sources {
   margin-bottom: 1.5%;
 }
@@ -259,26 +277,10 @@
   border-width: 2px;
   border-style: solid;
   padding: vars.$margin-2;
-
-  .maputnik-input-block-label {
-    width: 30%;
-  }
-
-  .maputnik-input-block-action {
-    width: 20%;
-  }
 }
 
 .maputnik-add-source {
   @extend .clearfix !optional; /* stylelint-disable-line */
-
-  .maputnik-input-block-label {
-    width: 30%;
-  }
-
-  .maputnik-input-block-action {
-    width: 20%;
-  }
 }
 
 .maputnik-add-source-button {
